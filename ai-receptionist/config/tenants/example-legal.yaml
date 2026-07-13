@@ -1,0 +1,67 @@
+# Example tenant configuration — law firm.
+# This file documents the configuration surface; at runtime this data lives in
+# the `tenants` / `agent_configs` tables and is edited via the dashboard.
+tenant:
+  slug: hartley-law
+  name: Hartley & Associates
+  vertical: legal
+  timezone: America/Chicago
+  business_hours:
+    mon: [["09:00", "18:00"]]
+    tue: [["09:00", "18:00"]]
+    wed: [["09:00", "18:00"]]
+    thu: [["09:00", "18:00"]]
+    fri: [["09:00", "17:00"]]
+
+agent:
+  voice_id: vapi-default-professional-male
+  language: en
+  first_message: >-
+    You've reached Hartley and Associates. Please note this call may be
+    recorded. This is the firm's virtual receptionist — how may I direct
+    your inquiry?
+  persona: >-
+    Professional, discreet intake receptionist for a law firm. Answers
+    questions about practice areas, consultation process, and fees from the
+    knowledge base only. Never gives legal advice, never comments on case
+    merits, and never creates an attorney-client relationship — such
+    questions are recorded for an attorney callback.
+  forbidden_topics:
+    - legal advice or case-merit opinions
+    - guarantees of outcomes
+    - discussing other clients or ongoing matters
+
+qualification:
+  - key: matter_type
+    question: "What type of legal matter is this regarding?"
+    type: choice
+    options: [family, personal_injury, estate, business, criminal, other]
+  - key: urgency
+    question: "Is there a court date or deadline coming up?"
+    type: text
+    scoring: { has_deadline: 30 }
+  - key: existing_client
+    question: "Are you an existing client of the firm?"
+    type: boolean
+  - key: summary
+    question: "In a sentence or two, what happened?"
+    type: text
+
+scheduling:
+  services:
+    - { name: "Initial consultation (30 min)", duration_minutes: 30 }
+    - { name: "Initial consultation (60 min)", duration_minutes: 60 }
+  min_notice_hours: 12
+
+escalation:
+  mode: voicemail_callback     # v1 policy: no live transfer
+  triggers:
+    - caller explicitly asks for an attorney or a human
+    - any request for legal advice
+    - opposing party or represented-party call (conflict risk)
+  callback_promise: "A member of our team will return your call by the end of the business day."
+
+notifications:
+  email_confirmation: true
+  sms_confirmation: true
+  sms_reminder_hours_before: 24

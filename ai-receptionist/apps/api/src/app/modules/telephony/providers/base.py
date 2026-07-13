@@ -1,0 +1,72 @@
+"""VoiceProvider — the boundary between our platform and the voice vendor.
+
+Purpose: everything vendor-specific (Vapi today, Retell as fallback) lives
+behind this interface. Swapping vendors means writing one new adapter; the
+conversation engine, tool executor, and data layer never change.
+
+Inputs: raw webhook payloads and our tenant-level agent configuration.
+Outputs: normalized platform events and vendor-side agent/call operations.
+"""
+
+import uuid
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any
+
+
+class CallEventType(StrEnum):
+    CALL_STARTED = "call_started"
+    CALL_ENDED = "call_ended"
+    TOOL_CALL = "tool_call"
+    TRANSCRIPT_UPDATE = "transcript_update"
+    STATUS_UPDATE = "status_update"
+
+
+@dataclass(frozen=True)
+class NormalizedCallEvent:
+    """Vendor-agnostic representation of a voice webhook event."""
+
+    event_type: CallEventType
+    vendor_call_id: str
+    to_number: str  # tenant's number (E.164) — resolves the tenant
+    from_number: str  # caller (E.164)
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AgentDefinition:
+    """What the vendor needs to run a tenant's agent: prompt, voice, tools."""
+
+    tenant_id: uuid.UUID
+    system_prompt: str
+    first_message: str
+    voice_id: str
+    language: str = "en"
+    tools: list[dict[str, Any]] = field(default_factory=list)
+    max_duration_seconds: int = 900
+
+
+class VoiceProvider(ABC):
+    """Adapter interface for voice-agent vendors."""
+
+    @abstractmethod
+    def verify_webhook(self, payload: bytes, headers: dict[str, str]) -> None:
+        """Raise WebhookSignatureError unless the request is authentic."""
+
+    @abstractmethod
+    def parse_event(self, payload: dict[str, Any]) -> NormalizedCallEvent:
+        """Translate a vendor webhook body into a NormalizedCallEvent."""
+
+    @abstractmethod
+    async def sync_agent(self, definition: AgentDefinition) -> str:
+        """Create/update the vendor-side agent; return the vendor agent id."""
+
+    @abstractmethod
+    async def attach_number(self, vendor_agent_id: str, e164_number: str) -> None:
+        """Route an inbound phone number to the given vendor agent."""
+
+    @abstractmethod
+    def format_tool_result(self, tool_call_id: str, result: str) -> dict[str, Any]:
+        """Shape a tool result the way the vendor expects it in the webhook
+        response, so it can be spoken to the caller."""

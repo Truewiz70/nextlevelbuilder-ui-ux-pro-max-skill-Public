@@ -1,0 +1,61 @@
+"""Application error hierarchy and FastAPI exception handlers.
+
+Errors carry a machine-readable `code` so the dashboard and integrations can
+branch on failures without string-matching messages. Internal detail is never
+leaked to callers in production.
+"""
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+class AppError(Exception):
+    status_code = 500
+    code = "internal_error"
+
+    def __init__(self, message: str = "", **context: object) -> None:
+        super().__init__(message or self.code)
+        self.message = message or self.code
+        self.context = context
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+
+
+class TenantNotFoundError(NotFoundError):
+    code = "tenant_not_found"
+
+
+class ValidationFailedError(AppError):
+    status_code = 422
+    code = "validation_failed"
+
+
+class WebhookSignatureError(AppError):
+    status_code = 401
+    code = "invalid_webhook_signature"
+
+
+class IntegrationError(AppError):
+    """A downstream integration (calendar, CRM, email, SMS) failed."""
+
+    status_code = 502
+    code = "integration_error"
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+        logger.warning(
+            "app_error", code=exc.code, path=request.url.path, message=exc.message, **exc.context
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": exc.code, "message": exc.message}},
+        )

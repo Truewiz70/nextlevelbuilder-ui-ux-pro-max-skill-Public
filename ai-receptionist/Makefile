@@ -1,0 +1,39 @@
+VENV ?= .venv
+PY := $(VENV)/bin/python
+PIP := $(VENV)/bin/pip
+
+.PHONY: install up down db dev migrate revision test lint fmt
+
+install:
+	python3 -m venv $(VENV)
+	$(PIP) install --upgrade pip
+	$(PIP) install -e "apps/api[dev]"
+
+up:
+	docker compose up --build -d
+
+down:
+	docker compose down
+
+db:
+	docker compose up -d postgres redis
+
+dev:
+	cd apps/api && ../../$(PY) -m uvicorn app.main:app --reload --port 8000
+
+migrate:
+	cd apps/api && ../../$(PY) -m alembic upgrade head
+
+revision:
+	cd apps/api && ../../$(PY) -m alembic revision -m "$(m)"
+
+test:
+	cd apps/api && ../../$(PY) -m pytest -q
+
+lint:
+	$(VENV)/bin/ruff check apps/api
+	$(VENV)/bin/ruff format --check apps/api
+
+fmt:
+	$(VENV)/bin/ruff check --fix apps/api
+	$(VENV)/bin/ruff format apps/api
