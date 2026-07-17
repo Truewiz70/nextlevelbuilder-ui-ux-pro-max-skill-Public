@@ -13,8 +13,15 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import get_settings
+
+
+class Base(DeclarativeBase):
+    """Declarative base for all ORM models. The schema itself is owned by
+    Alembic migrations; models map to it and never create tables."""
+
 
 _engine = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None

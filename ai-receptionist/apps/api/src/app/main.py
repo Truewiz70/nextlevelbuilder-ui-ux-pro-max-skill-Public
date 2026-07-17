@@ -62,10 +62,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await app.state.redis.ping()
         return {"status": "ready", "database": "ok", "redis": "ok"}
 
-    # Module routers mount here as they land (Phase 3+):
-    # app.include_router(telephony.router, prefix="/webhooks/voice")
-    # app.include_router(tenants.router, prefix="/api/v1/tenants")
-    # ...
+    # Module routers mount here as they land:
+    from app.modules.telephony.routes import router as telephony_router
+
+    app.include_router(telephony_router, prefix="/webhooks/voice", tags=["webhooks"])
+    # Phase 4+: tenants, knowledge, calls, analytics API routers.
 
     return app
 

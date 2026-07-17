@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev migrate revision test lint fmt
+.PHONY: install up down db dev worker seed migrate revision test lint fmt
 
 install:
 	python3 -m venv $(VENV)
@@ -20,6 +20,12 @@ db:
 
 dev:
 	cd apps/api && ../../$(PY) -m uvicorn app.main:app --reload --port 8000
+
+worker:
+	cd apps/api && ../../$(PY) -m app.workers.post_call
+
+seed:
+	cd apps/api && ../../$(PY) scripts/seed_demo.py ../../config/tenants/example-dental.yaml
 
 migrate:
 	cd apps/api && ../../$(PY) -m alembic upgrade head
