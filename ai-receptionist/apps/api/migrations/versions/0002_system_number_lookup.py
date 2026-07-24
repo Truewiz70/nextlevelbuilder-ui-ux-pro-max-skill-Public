@@ -17,10 +17,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # NULLIF(...,'') treats a leftover empty string (see migration 0001's
+    # comment on the pooled-connection reset edge case) the same as a truly
+    # unset variable — both mean "no tenant scope", so the lookup is allowed.
     op.execute("""
         CREATE POLICY system_number_lookup ON phone_numbers
         FOR SELECT
-        USING (current_setting('app.tenant_id', true) IS NULL)
+        USING (NULLIF(current_setting('app.tenant_id', true), '') IS NULL)
     """)
 
 

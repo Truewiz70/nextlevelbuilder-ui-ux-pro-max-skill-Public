@@ -5,6 +5,11 @@ Usage:
         --number +15550100001
 
 Idempotent: re-running updates nothing if the slug already exists.
+
+Knowledge-base entries in the YAML's `knowledge:` section are embedded via
+Voyage and ready for RAG immediately — this step is skipped (not failed)
+when VOYAGE_API_KEY isn't configured, so the tenant is still usable for
+qualification/callback testing without live embedding credentials.
 """
 
 import argparse
@@ -14,8 +19,12 @@ from pathlib import Path
 import yaml
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.db import admin_session, tenant_session
 from app.core.logging import configure_logging, get_logger
+from app.modules.conversation.knowledge import ingest_document
+from app.modules.conversation.models import KnowledgeDoc
+from app.modules.conversation.providers import get_embedding_provider
 from app.modules.tenants.models import AgentConfig, PhoneNumber, Tenant
 
 logger = get_logger(__name__)
@@ -44,6 +53,7 @@ async def seed(config_path: Path, number: str) -> None:
         await session.flush()
         tenant_id = tenant.id
 
+    knowledge_doc_ids = []
     async with tenant_session(tenant_id) as session:
         session.add(
             AgentConfig(
@@ -60,7 +70,30 @@ async def seed(config_path: Path, number: str) -> None:
         )
         session.add(PhoneNumber(tenant_id=tenant_id, e164=number))
 
+        for item in doc.get("knowledge", []):
+            knowledge_doc = KnowledgeDoc(
+                tenant_id=tenant_id, title=item["title"], content=item["content"]
+            )
+            session.add(knowledge_doc)
+            await session.flush()
+            knowledge_doc_ids.append(knowledge_doc.id)
+
     logger.info("tenant_seeded", slug=tenant_cfg["slug"], tenant_id=str(tenant_id), number=number)
+
+    if not knowledge_doc_ids:
+        return
+    if not get_settings().voyage_api_key:
+        logger.warning(
+            "knowledge_ingestion_skipped",
+            reason="VOYAGE_API_KEY not configured",
+            docs=len(knowledge_doc_ids),
+        )
+        return
+
+    embeddings = get_embedding_provider(get_settings())
+    for knowledge_doc_id in knowledge_doc_ids:
+        chunk_count = await ingest_document(tenant_id, knowledge_doc_id, embeddings)
+        logger.info("knowledge_doc_ingested", doc_id=str(knowledge_doc_id), chunks=chunk_count)
 
 
 if __name__ == "__main__":

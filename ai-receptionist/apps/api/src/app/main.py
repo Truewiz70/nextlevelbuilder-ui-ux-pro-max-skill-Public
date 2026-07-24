@@ -15,6 +15,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import check_database
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
+from app.modules.conversation.providers import get_embedding_provider, get_llm_provider
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,11 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     app.state.redis = aioredis.from_url(settings.redis_url)
+    # Provider clients are constructed once and reused — not per-request.
+    # Tests override these on app.state after TestClient startup (fakes must
+    # replace the real providers post-lifespan, or this assignment wins).
+    app.state.llm_provider = get_llm_provider(settings)
+    app.state.embedding_provider = get_embedding_provider(settings)
     logger.info("startup", env=settings.app_env)
     yield
     await app.state.redis.aclose()

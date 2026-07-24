@@ -21,6 +21,7 @@ from app.modules.telephony.providers.base import (
     AgentDefinition,
     CallEventType,
     NormalizedCallEvent,
+    ToolCallRequest,
     VoiceProvider,
 )
 
@@ -86,6 +87,7 @@ class VapiProvider(VoiceProvider):
                         "provider": "anthropic",
                         "model": "claude-sonnet-5",
                         "messages": [{"role": "system", "content": definition.system_prompt}],
+                        "tools": definition.tools,
                     },
                     "voice": {"voiceId": definition.voice_id} if definition.voice_id else None,
                     "maxDurationSeconds": definition.max_duration_seconds,
@@ -106,5 +108,19 @@ class VapiProvider(VoiceProvider):
             )
             response.raise_for_status()
 
-    def format_tool_result(self, tool_call_id: str, result: str) -> dict[str, Any]:
-        return {"results": [{"toolCallId": tool_call_id, "result": result}]}
+    def extract_tool_calls(self, event: NormalizedCallEvent) -> list[ToolCallRequest]:
+        return [
+            ToolCallRequest(
+                id=raw.get("id", ""),
+                name=raw.get("name", ""),
+                arguments=raw.get("arguments") or {},
+            )
+            for raw in event.payload.get("toolCallList") or []
+        ]
+
+    def format_tool_results(self, results: list[tuple[str, str]]) -> dict[str, Any]:
+        return {
+            "results": [
+                {"toolCallId": tool_call_id, "result": result} for tool_call_id, result in results
+            ]
+        }

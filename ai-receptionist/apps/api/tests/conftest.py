@@ -1,0 +1,36 @@
+import socket
+
+import pytest
+import pytest_asyncio
+
+from app.core import db as db_module
+
+
+def _reachable(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+requires_services = pytest.mark.skipif(
+    not (_reachable("localhost", 5432) and _reachable("localhost", 6379)),
+    reason="requires local Postgres and Redis",
+)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_db_engine():
+    """pytest-asyncio gives each test function its own event loop by
+    default, but core/db.py's engine is a lazily-created module-level
+    singleton — reused across tests, it holds asyncpg connections bound to
+    a now-dead loop and every DB call after the first test fails with
+    "attached to a different loop". Dispose and drop it after every test so
+    the next one that touches the database builds a fresh engine bound to
+    its own loop."""
+    yield
+    if db_module._engine is not None:
+        await db_module._engine.dispose()
+        db_module._engine = None
+        db_module._session_factory = None

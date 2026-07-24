@@ -265,10 +265,18 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
         # missing_ok=true: an unset variable yields NULL (row invisible)
         # instead of erroring, so unscoped sessions simply see nothing.
+        # NULLIF(...,'') additionally guards a pooled-connection edge case:
+        # once a custom GUC like app.tenant_id has been SET at all on a
+        # physical connection (even via SET LOCAL, even in an earlier,
+        # already-committed transaction), Postgres's placeholder-reset
+        # semantics can leave current_setting() returning '' rather than a
+        # true NULL on a later reuse of that connection for an unscoped
+        # session — which would otherwise crash the ::uuid cast instead of
+        # failing closed.
         op.execute(f"""
             CREATE POLICY tenant_isolation ON {table}
-            USING (tenant_id = current_setting('app.tenant_id', true)::uuid)
-            WITH CHECK (tenant_id = current_setting('app.tenant_id', true)::uuid)
+            USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+            WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
         """)
 
 

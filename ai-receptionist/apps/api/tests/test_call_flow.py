@@ -8,11 +8,9 @@ runs it against its service containers.
 """
 
 import json
-import socket
 import uuid
 from pathlib import Path
 
-import pytest
 import redis as sync_redis
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
@@ -20,23 +18,10 @@ from sqlalchemy import create_engine, text
 from app.core.config import Settings
 from app.core.queue import POST_CALL_QUEUE
 from app.main import create_app
+from tests.conftest import requires_services
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SECRET = "test-secret"
-
-
-def _reachable(host: str, port: int) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=1):
-            return True
-    except OSError:
-        return False
-
-
-requires_services = pytest.mark.skipif(
-    not (_reachable("localhost", 5432) and _reachable("localhost", 6379)),
-    reason="requires local Postgres and Redis",
-)
 
 
 def _fixture(name: str, number: str, call_id: str) -> dict:
@@ -70,6 +55,16 @@ def test_full_call_lifecycle() -> None:
             text("INSERT INTO phone_numbers (tenant_id, e164) VALUES (:tid, :e164)"),
             {"tid": str(tenant_id), "e164": number},
         )
+        # An active agent config is required for the TOOL_CALL path (it
+        # supplies the tools and escalation policy).
+        conn.execute(
+            text(
+                "INSERT INTO agent_configs "
+                "(tenant_id, version, is_active, system_prompt, first_message) "
+                "VALUES (:tid, 1, true, 'You are a receptionist.', 'Hello!')"
+            ),
+            {"tid": str(tenant_id)},
+        )
 
     try:
         app = create_app(settings)
@@ -86,7 +81,13 @@ def test_full_call_lifecycle() -> None:
             assert unsigned.status_code == 401
 
             assert post("vapi_call_started.json").json() == {"status": "accepted"}
-            assert post("vapi_tool_calls.json").json() == {"status": "accepted"}
+            # The TOOL_CALL path returns Vapi-shaped tool results, not a
+            # status ack. The fixture's tool ("check_availability") is not a
+            # real tool, so it hits the safe fallback — still a 200 with a
+            # results envelope, which is what proves the path is wired.
+            tool_response = post("vapi_tool_calls.json").json()
+            assert "results" in tool_response
+            assert tool_response["results"][0]["toolCallId"] == "toolcall-0001"
             assert post("vapi_end_of_call_report.json").json() == {"status": "accepted"}
 
         with engine.begin() as conn:

@@ -47,6 +47,24 @@ qualification:
     question: "In a sentence or two, what happened?"
     type: text
 
+# FAQ knowledge base — chunked and embedded on seed (make seed), retrieved
+# via RAG for the answer_faq tool. Grounds every answer; the agent never
+# answers from memory (Phase 1 Risk R3).
+knowledge:
+  - title: "Practice areas"
+    content: >-
+      Hartley and Associates handles family law, personal injury, estate
+      planning, and business law matters. We do not currently handle
+      criminal defense.
+  - title: "Consultation fees"
+    content: >-
+      Initial consultations are $150 for 30 minutes or $250 for 60 minutes.
+      The fee is waived if you retain the firm for representation.
+  - title: "Office hours and location"
+    content: >-
+      Our office is open Monday through Friday, 9am to 6pm (5pm on Fridays).
+      We are located at 200 Congress Avenue, Suite 400.
+
 scheduling:
   services:
     - { name: "Initial consultation (30 min)", duration_minutes: 30 }

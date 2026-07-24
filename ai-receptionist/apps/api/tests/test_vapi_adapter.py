@@ -64,6 +64,27 @@ def test_parse_unknown_type_rejected(provider: VapiProvider) -> None:
         provider.parse_event({"message": {"type": "something-new"}})
 
 
-def test_tool_result_format(provider: VapiProvider) -> None:
-    body = provider.format_tool_result("toolcall-0001", "3 slots available")
-    assert body == {"results": [{"toolCallId": "toolcall-0001", "result": "3 slots available"}]}
+def test_extract_tool_calls(provider: VapiProvider) -> None:
+    event = provider.parse_event(load("vapi_tool_calls.json"))
+    calls = provider.extract_tool_calls(event)
+    assert len(calls) == 1
+    assert calls[0].id == "toolcall-0001"
+    assert calls[0].name == "check_availability"
+    assert calls[0].arguments == {"service": "Cleaning & check-up", "date": "2026-07-20"}
+
+
+def test_extract_tool_calls_empty_when_none_present(provider: VapiProvider) -> None:
+    event = provider.parse_event(load("vapi_call_started.json"))
+    assert provider.extract_tool_calls(event) == []
+
+
+def test_format_tool_results(provider: VapiProvider) -> None:
+    body = provider.format_tool_results(
+        [("toolcall-0001", "3 slots available"), ("toolcall-0002", "Got it, thank you.")]
+    )
+    assert body == {
+        "results": [
+            {"toolCallId": "toolcall-0001", "result": "3 slots available"},
+            {"toolCallId": "toolcall-0002", "result": "Got it, thank you."},
+        ]
+    }

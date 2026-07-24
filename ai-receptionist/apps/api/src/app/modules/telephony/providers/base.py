@@ -35,6 +35,16 @@ class NormalizedCallEvent:
 
 
 @dataclass(frozen=True)
+class ToolCallRequest:
+    """One tool invocation extracted from a TOOL_CALL event. A single event
+    may carry several of these (a model turn can request multiple tools)."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class AgentDefinition:
     """What the vendor needs to run a tenant's agent: prompt, voice, tools."""
 
@@ -67,6 +77,10 @@ class VoiceProvider(ABC):
         """Route an inbound phone number to the given vendor agent."""
 
     @abstractmethod
-    def format_tool_result(self, tool_call_id: str, result: str) -> dict[str, Any]:
-        """Shape a tool result the way the vendor expects it in the webhook
-        response, so it can be spoken to the caller."""
+    def extract_tool_calls(self, event: NormalizedCallEvent) -> list[ToolCallRequest]:
+        """Pull the individual tool invocations out of a TOOL_CALL event."""
+
+    @abstractmethod
+    def format_tool_results(self, results: list[tuple[str, str]]) -> dict[str, Any]:
+        """Shape (tool_call_id, result_text) pairs the way the vendor expects
+        them in the webhook response, so they can be spoken to the caller."""

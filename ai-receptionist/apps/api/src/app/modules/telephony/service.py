@@ -120,6 +120,9 @@ class TelephonyService:
         return {"status": "accepted"}
 
     async def _on_progress_event(self, event: NormalizedCallEvent) -> dict[str, Any]:
+        # TOOL_CALL events are dispatched to the conversation module by the
+        # route (which needs the tool result to build the HTTP response);
+        # this still records the audit trail for every progress event.
         tenant_id, call_id = await self._resolve_call(event)
         async with tenant_session(tenant_id) as session:
             session.add(
@@ -130,8 +133,15 @@ class TelephonyService:
                     payload={"vendor_type": event.payload.get("type")},
                 )
             )
-        # TOOL_CALL dispatch to the tool executor lands in Phase 4.
         return {"status": "accepted"}
+
+    # ── public: used by the webhook route to dispatch tool calls ───────────
+
+    async def resolve_call_context(self, event: NormalizedCallEvent) -> tuple[uuid.UUID, uuid.UUID]:
+        """(tenant_id, call_id) for an in-flight call. Exposed so the route
+        can resolve identity for tool dispatch without duplicating the
+        Redis-then-DB fallback logic in `_resolve_call`."""
+        return await self._resolve_call(event)
 
     # ── helpers ────────────────────────────────────────────────────────────
 

@@ -45,8 +45,13 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 async def tenant_session(tenant_id: uuid.UUID) -> AsyncIterator[AsyncSession]:
     """Session scoped to one tenant; RLS policies filter on app.tenant_id.
 
-    `SET LOCAL` binds the variable to the enclosing transaction only, so
-    pooled connections never leak tenant context between requests.
+    `SET LOCAL` binds the variable to the enclosing transaction, so the
+    scope itself never outlives this block. But on a pooled connection that
+    gets reused, Postgres's custom-GUC reset semantics can leave
+    `current_setting('app.tenant_id', true)` returning '' rather than a
+    true NULL on the *next* transaction over that same physical connection
+    — the RLS policies guard against that (NULLIF(...,'') — see migration
+    0001) and `admin_session()` clears it explicitly for the same reason.
     """
     factory = get_session_factory()
     async with factory() as session, session.begin():
@@ -59,9 +64,14 @@ async def tenant_session(tenant_id: uuid.UUID) -> AsyncIterator[AsyncSession]:
 @asynccontextmanager
 async def admin_session() -> AsyncIterator[AsyncSession]:
     """Unscoped session for cross-tenant operations (tenant lookup, analytics
-    rollups, migrations). Use sparingly and never with caller-supplied SQL."""
+    rollups, migrations). Use sparingly and never with caller-supplied SQL.
+
+    Explicitly clears app.tenant_id rather than relying on it being unset —
+    see the pooled-connection caveat on `tenant_session()`.
+    """
     factory = get_session_factory()
     async with factory() as session, session.begin():
+        await session.execute(text("SELECT set_config('app.tenant_id', '', true)"))
         yield session
 
 

@@ -46,6 +46,25 @@ qualification:
     question: "Do you have dental insurance, and if so, which provider?"
     type: text
 
+# FAQ knowledge base — chunked and embedded on seed (make seed), retrieved
+# via RAG for the answer_faq tool. Grounds every answer; the agent never
+# answers from memory (Phase 1 Risk R3).
+knowledge:
+  - title: "New patients & insurance"
+    content: >-
+      We welcome new patients of all ages. We accept most major PPO dental
+      insurance plans including Delta Dental, Cigna, and MetLife. We also
+      offer an in-house savings plan for patients without insurance.
+  - title: "Hours and location"
+    content: >-
+      We are open Monday through Thursday 8am to 5pm, and Friday 8am to 1pm.
+      We are closed on weekends. The office is located at 100 Main Street.
+  - title: "Emergency dental care"
+    content: >-
+      We reserve same-day appointment slots for dental emergencies such as
+      severe pain, swelling, or a knocked-out tooth. Call us right away and
+      we will do our best to see you the same day.
+
 scheduling:
   services:
     - { name: "Cleaning & check-up", duration_minutes: 60 }
