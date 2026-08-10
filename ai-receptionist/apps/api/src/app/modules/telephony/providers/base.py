@@ -69,12 +69,18 @@ class VoiceProvider(ABC):
         """Translate a vendor webhook body into a NormalizedCallEvent."""
 
     @abstractmethod
-    async def sync_agent(self, definition: AgentDefinition) -> str:
-        """Create/update the vendor-side agent; return the vendor agent id."""
+    async def sync_agent(self, definition: AgentDefinition, *, existing_agent_id: str = "") -> str:
+        """Create or update the vendor-side agent; return the vendor agent id.
+
+        Must be idempotent: pass the previously stored id to update in place
+        rather than creating a duplicate agent on every provisioning run.
+        """
 
     @abstractmethod
-    async def attach_number(self, vendor_agent_id: str, e164_number: str) -> None:
-        """Route an inbound phone number to the given vendor agent."""
+    async def attach_number(self, vendor_agent_id: str, e164_number: str) -> str:
+        """Route an inbound phone number to the given vendor agent; return the
+        vendor's id for that number. Idempotent — re-pointing an already
+        imported number must not fail or duplicate it."""
 
     @abstractmethod
     def extract_tool_calls(self, event: NormalizedCallEvent) -> list[ToolCallRequest]:

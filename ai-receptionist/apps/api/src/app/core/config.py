@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     voice_provider: Literal["vapi", "retell"] = "vapi"
     vapi_api_key: str = ""
     vapi_webhook_secret: str = ""
+    # Publicly reachable base URL of THIS api, e.g. https://api.example.com or
+    # an https tunnel in development. Written into the vendor-side agent as its
+    # server URL, so the vendor knows where to send call + tool-call webhooks.
+    # Without it, provisioning has nowhere to point and the agent can't call
+    # any tool.
+    public_webhook_base_url: str = ""
 
     # Telephony / SMS
     twilio_account_sid: str = ""

@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev worker seed migrate revision test lint fmt
+.PHONY: install up down db dev worker seed provision migrate revision test lint fmt
 
 install:
 	python3 -m venv $(VENV)
@@ -26,6 +26,12 @@ worker:
 
 seed:
 	cd apps/api && ../../$(PY) scripts/seed_demo.py ../../config/tenants/example-dental.yaml
+
+# Push a tenant's agent config to the voice vendor and point its number at it.
+# Re-run after any prompt/knowledge/tool change. Override: make provision SLUG=...
+SLUG ?= bright-smile-dental
+provision:
+	cd apps/api && ../../$(PY) scripts/provision_voice.py --slug $(SLUG)
 
 migrate:
 	cd apps/api && ../../$(PY) -m alembic upgrade head
