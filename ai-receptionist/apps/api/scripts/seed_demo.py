@@ -63,6 +63,8 @@ async def seed(config_path: Path, number: str) -> None:
                 system_prompt=agent_cfg["persona"],
                 first_message=agent_cfg["first_message"],
                 voice_id=agent_cfg.get("voice_id", ""),
+                voice_provider=agent_cfg.get("voice_provider", ""),
+                voice_model=agent_cfg.get("voice_model", ""),
                 language=agent_cfg.get("language", "en"),
                 qualification=doc.get("qualification", []),
                 escalation_policy=doc.get("escalation", {"mode": "voicemail_callback"}),

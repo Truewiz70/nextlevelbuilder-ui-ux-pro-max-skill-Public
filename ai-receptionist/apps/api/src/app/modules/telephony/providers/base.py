@@ -52,6 +52,11 @@ class AgentDefinition:
     system_prompt: str
     first_message: str
     voice_id: str
+    # Empty means "vendor default". `voice_provider` names the TTS vendor
+    # (e.g. "11labs"), so a tenant can use ElevenLabs voices while the
+    # voice-agent orchestration stays with the primary vendor.
+    voice_provider: str = ""
+    voice_model: str = ""
     language: str = "en"
     tools: list[dict[str, Any]] = field(default_factory=list)
     max_duration_seconds: int = 900

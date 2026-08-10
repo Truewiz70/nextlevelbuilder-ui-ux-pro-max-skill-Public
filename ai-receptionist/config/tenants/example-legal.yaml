@@ -14,7 +14,13 @@ tenant:
     fri: [["09:00", "17:00"]]
 
 agent:
-  voice_id: vapi-default-professional-male
+  # ElevenLabs voice, spoken through the Vapi agent — see the dental config
+  # and docs/runbooks/connecting-the-voice-system.md for setup.
+  # voice_id below is an ElevenLabs stock voice ("Adam"); replace it with
+  # whichever voice you pick in the ElevenLabs dashboard.
+  voice_provider: 11labs
+  voice_id: pNInz6obpgDQGcFmaJgB
+  voice_model: eleven_turbo_v2_5
   language: en
   first_message: >-
     You've reached Hartley and Associates. Please note this call may be

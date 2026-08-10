@@ -47,6 +47,9 @@ class AgentConfig(Base):
     system_prompt: Mapped[str] = mapped_column(Text)
     first_message: Mapped[str] = mapped_column(Text)
     voice_id: Mapped[str] = mapped_column(Text, default="")
+    # "" means the voice vendor's default; e.g. "11labs" for ElevenLabs voices.
+    voice_provider: Mapped[str] = mapped_column(Text, default="")
+    voice_model: Mapped[str] = mapped_column(Text, default="")
     language: Mapped[str] = mapped_column(Text, default="en")
     qualification: Mapped[list[Any]] = mapped_column(JSONB, default=list)
     escalation_policy: Mapped[dict[str, Any]] = mapped_column(

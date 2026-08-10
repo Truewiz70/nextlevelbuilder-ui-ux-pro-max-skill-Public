@@ -34,7 +34,41 @@ wires it to link 1.
 | Anthropic API key | `ANTHROPIC_API_KEY` | in-call answers + post-call summaries |
 | Voyage API key | `VOYAGE_API_KEY` | knowledge-base embeddings |
 
-### 2. A publicly reachable URL
+### 2. Voice quality: using ElevenLabs voices
+
+The demo tenants are configured to speak with **ElevenLabs** voices while Vapi
+continues to handle telephony and turn-taking. For a receptionist this is the
+caller's first impression of the business, so it's worth setting up.
+
+One dashboard step is required: **add your ElevenLabs API key in the Vapi
+dashboard → Provider Keys**. Vapi calls ElevenLabs on your behalf, so the key
+lives there, not in our `.env` (our platform never calls ElevenLabs directly
+in this configuration).
+
+Then pick a voice in the ElevenLabs dashboard (Voices) and put its id in the
+tenant's YAML:
+
+```yaml
+agent:
+  voice_provider: 11labs               # ← selects the vendor
+  voice_id: 21m00Tcm4TlvDq8ikWAM       # ← from the ElevenLabs dashboard
+  voice_model: eleven_turbo_v2_5       # ← low-latency model
+```
+
+Three things worth knowing:
+
+- **`voice_provider` is not optional.** A voice id without it is silently
+  ignored and you get Vapi's default voice — the most common way this looks
+  "connected but wrong".
+- **Use a turbo/flash model.** The standard multilingual model adds enough
+  latency to be audible on a phone call, against the sub-second budget
+  (NFR-01).
+- **Voice ids in the example configs are ElevenLabs stock voices** — verify or
+  replace them with your own picks.
+
+Re-run `make provision` after changing any voice setting.
+
+### 3. A publicly reachable URL
 
 Vapi must be able to POST to us. Set `PUBLIC_WEBHOOK_BASE_URL` to the public
 origin of this API — **no trailing slash**, and it must be HTTPS.
@@ -85,6 +119,8 @@ Call the number. Then check, in order:
 |---|---|
 | Rings, nobody answers | Number not attached — re-run `make provision`; check it appears in the Vapi dashboard |
 | Agent answers but with the wrong greeting/persona | Provisioning ran before the config change — re-run `make provision` |
+| Wrong voice — Vapi default instead of ElevenLabs | `voice_provider` missing from the tenant YAML, or the ElevenLabs key isn't in Vapi's Provider Keys |
+| Voice sounds right but replies feel laggy | Using a non-turbo `voice_model`; switch to `eleven_turbo_v2_5` |
 | Agent answers but never uses the knowledge base | Webhook unreachable. Check `PUBLIC_WEBHOOK_BASE_URL`, that the tunnel is live, and that `make dev` is running |
 | Webhooks arrive but 401 | `VAPI_WEBHOOK_SECRET` differs from what was provisioned — re-run `make provision` after fixing `.env` |
 | Answers are always "I'll have someone follow up" | Knowledge base not embedded — set `VOYAGE_API_KEY` and re-run `make seed` (it skips ingestion without the key) |

@@ -32,15 +32,16 @@ def _settings(**overrides) -> Settings:
     return Settings(**{**base, **overrides})
 
 
-def _definition() -> AgentDefinition:
-    return AgentDefinition(
-        tenant_id=uuid.uuid4(),
-        system_prompt="You are a receptionist.",
-        first_message="Thanks for calling!",
-        voice_id="voice-abc",
-        tools=TOOL_SCHEMAS,
-        max_duration_seconds=900,
-    )
+def _definition(**overrides) -> AgentDefinition:
+    base = {
+        "tenant_id": uuid.uuid4(),
+        "system_prompt": "You are a receptionist.",
+        "first_message": "Thanks for calling!",
+        "voice_id": "voice-abc",
+        "tools": TOOL_SCHEMAS,
+        "max_duration_seconds": 900,
+    }
+    return AgentDefinition(**{**base, **overrides})
 
 
 def _mock(provider: VapiProvider, handler) -> list[httpx.Request]:
@@ -75,6 +76,47 @@ async def test_new_agent_payload_carries_server_url_secret_and_tools() -> None:
     assert {"answer_faq", "record_qualification_answer", "request_callback"} == tool_names
     assert body["model"]["messages"][0]["content"] == "You are a receptionist."
     assert body["voice"]["voiceId"] == "voice-abc"
+
+
+async def test_elevenlabs_voice_carries_provider_and_model() -> None:
+    """A voice id without its provider silently falls back to Vapi's default
+    voice — the provider field is what actually selects ElevenLabs."""
+    provider = VapiProvider(_settings())
+    seen = _mock(provider, lambda r: httpx.Response(200, json={"id": "asst-1"}))
+
+    await provider.sync_agent(
+        _definition(
+            voice_id="21m00Tcm4TlvDq8ikWAM",
+            voice_provider="11labs",
+            voice_model="eleven_turbo_v2_5",
+        )
+    )
+
+    assert json.loads(seen[0].content)["voice"] == {
+        "voiceId": "21m00Tcm4TlvDq8ikWAM",
+        "provider": "11labs",
+        "model": "eleven_turbo_v2_5",
+    }
+
+
+async def test_voice_provider_and_model_omitted_when_unset() -> None:
+    """Tenants that haven't chosen a vendor must not pin one — an empty
+    string would be an invalid provider, not 'use the default'."""
+    provider = VapiProvider(_settings())
+    seen = _mock(provider, lambda r: httpx.Response(200, json={"id": "asst-1"}))
+
+    await provider.sync_agent(_definition(voice_provider="", voice_model=""))
+
+    assert json.loads(seen[0].content)["voice"] == {"voiceId": "voice-abc"}
+
+
+async def test_no_voice_key_when_no_voice_configured() -> None:
+    provider = VapiProvider(_settings())
+    seen = _mock(provider, lambda r: httpx.Response(200, json={"id": "asst-1"}))
+
+    await provider.sync_agent(_definition(voice_id=""))
+
+    assert "voice" not in json.loads(seen[0].content)
 
 
 async def test_existing_agent_is_updated_not_duplicated() -> None:

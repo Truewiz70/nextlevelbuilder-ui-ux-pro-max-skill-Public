@@ -80,7 +80,15 @@ class VapiProvider(VoiceProvider):
             "serverMessages": ["status-update", "tool-calls", "end-of-call-report"],
         }
         if definition.voice_id:
-            payload["voice"] = {"voiceId": definition.voice_id}
+            voice: dict[str, Any] = {"voiceId": definition.voice_id}
+            # A voice id is meaningless without its vendor; omitting the
+            # provider leaves Vapi on its default TTS, which silently
+            # ignores an ElevenLabs voice id.
+            if definition.voice_provider:
+                voice["provider"] = definition.voice_provider
+            if definition.voice_model:
+                voice["model"] = definition.voice_model
+            payload["voice"] = voice
         return payload
 
     def verify_webhook(self, payload: bytes, headers: dict[str, str]) -> None:

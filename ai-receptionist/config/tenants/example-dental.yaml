@@ -14,7 +14,20 @@ tenant:
     fri: [["08:00", "13:00"]]
 
 agent:
-  voice_id: vapi-default-warm-female
+  # ElevenLabs voice, spoken through the Vapi agent. `voice_provider` is what
+  # tells Vapi whose library `voice_id` comes from — without it the id is
+  # ignored and you get Vapi's default voice.
+  # Requires your ElevenLabs API key added in the Vapi dashboard under
+  # Provider Keys (see docs/runbooks/connecting-the-voice-system.md).
+  #
+  # voice_id below is an ElevenLabs stock voice ("Rachel"); replace it with
+  # whichever voice you pick in the ElevenLabs dashboard (Voices → the id
+  # shown on the voice).
+  voice_provider: 11labs
+  voice_id: 21m00Tcm4TlvDq8ikWAM
+  # Low-latency model: the standard multilingual model adds enough delay to
+  # be audible on a phone call (NFR-01 budget).
+  voice_model: eleven_turbo_v2_5
   language: en
   first_message: >-
     Thank you for calling Bright Smile Dental. This call may be recorded for
