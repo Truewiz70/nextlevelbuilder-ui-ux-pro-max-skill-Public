@@ -19,7 +19,7 @@ from app.modules.conversation.tools import ToolExecutor
 from app.modules.telephony.providers import get_voice_provider
 from app.modules.telephony.providers.base import CallEventType
 from app.modules.telephony.service import TelephonyService
-from app.modules.tenants.repository import get_active_agent_config
+from app.modules.tenants.repository import get_active_agent_config, get_tenant
 
 router = APIRouter()
 
@@ -42,15 +42,19 @@ async def vapi_webhook(request: Request) -> dict[str, Any]:
 
     if event.event_type is CallEventType.TOOL_CALL:
         tenant_id, call_id = await service.resolve_call_context(event)
+        tenant = await get_tenant(tenant_id)
         agent_config = await get_active_agent_config(tenant_id)
         executor = ToolExecutor(
-            request.app.state.llm_provider, request.app.state.embedding_provider
+            request.app.state.llm_provider,
+            request.app.state.embedding_provider,
+            calendar=request.app.state.calendar_provider,
+            redis=request.app.state.redis,
         )
 
         results = []
         for tool_call in provider.extract_tool_calls(event):
             text = await executor.dispatch(
-                tenant_id=tenant_id,
+                tenant=tenant,
                 call_id=call_id,
                 caller_e164=event.from_number,
                 agent_config=agent_config,

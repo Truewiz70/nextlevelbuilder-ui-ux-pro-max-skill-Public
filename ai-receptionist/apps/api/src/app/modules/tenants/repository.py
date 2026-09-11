@@ -30,6 +30,19 @@ async def resolve_tenant_by_number(e164: str) -> tuple[Tenant, PhoneNumber]:
     return row.Tenant, row.PhoneNumber
 
 
+async def get_tenant(tenant_id: uuid.UUID) -> Tenant:
+    """Load a tenant by id. Detached from the session so callers can read its
+    config (business hours, timezone, settings) after the session closes."""
+    async with admin_session() as session:
+        tenant = (
+            await session.execute(select(Tenant).where(Tenant.id == tenant_id))
+        ).scalar_one_or_none()
+        if tenant is None:
+            raise TenantNotFoundError(f"no tenant {tenant_id}")
+        session.expunge(tenant)
+        return tenant
+
+
 async def get_active_agent_config(tenant_id: uuid.UUID) -> AgentConfig:
     async with tenant_session(tenant_id) as session:
         config = (

@@ -19,6 +19,7 @@ from pathlib import Path
 import yaml
 from sqlalchemy import select
 
+import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import get_settings
 from app.core.db import admin_session, tenant_session
 from app.core.logging import configure_logging, get_logger
@@ -47,7 +48,14 @@ async def seed(config_path: Path, number: str) -> None:
             vertical=tenant_cfg["vertical"],
             timezone=tenant_cfg.get("timezone", "America/New_York"),
             business_hours=tenant_cfg.get("business_hours", {}),
-            settings={"forbidden_topics": agent_cfg.get("forbidden_topics", [])},
+            # `settings` is the per-tenant policy blob the modules read at
+            # runtime: service durations and notice period (scheduling),
+            # which confirmations to send (notifications).
+            settings={
+                "forbidden_topics": agent_cfg.get("forbidden_topics", []),
+                "scheduling": doc.get("scheduling", {}),
+                "notifications": doc.get("notifications", {}),
+            },
         )
         session.add(tenant)
         await session.flush()

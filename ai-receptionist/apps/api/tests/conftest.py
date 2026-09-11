@@ -3,6 +3,7 @@ import socket
 import pytest
 import pytest_asyncio
 
+import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core import db as db_module
 
 

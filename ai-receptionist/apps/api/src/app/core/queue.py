@@ -15,6 +15,10 @@ from redis.asyncio import Redis
 from app.core.logging import get_logger
 
 POST_CALL_QUEUE = "queue:post_call"
+# Booking confirmations (email + SMS). Separate from post-call so a slow or
+# failing notification provider can never delay call classification, and so
+# the two can scale independently.
+CONFIRMATIONS_QUEUE = "queue:confirmations"
 logger = get_logger(__name__)
 
 

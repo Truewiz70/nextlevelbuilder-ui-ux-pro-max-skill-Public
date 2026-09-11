@@ -38,19 +38,26 @@ class BookingResult:
 
 class CalendarProvider(ABC):
     @abstractmethod
-    async def list_available_slots(
-        self,
-        tenant_id: uuid.UUID,
-        window_start: datetime,
-        window_end: datetime,
-        duration_minutes: int,
+    async def list_busy_periods(
+        self, tenant_id: uuid.UUID, window_start: datetime, window_end: datetime
     ) -> list[TimeSlot]:
-        """Free slots within the window, already filtered by business hours."""
+        """Periods already occupied on the tenant's calendar.
+
+        Only raw free/busy — business hours, service durations, and notice
+        periods are platform policy, not vendor data, so they live in
+        `scheduling.availability` where they're testable without a calendar
+        and identical across vendors.
+        """
 
     @abstractmethod
     async def book(self, request: BookingRequest) -> BookingResult:
-        """Create the event. Must re-verify availability atomically and be
-        idempotent on `idempotency_key` (retries must not double-book)."""
+        """Create the event, idempotently on `idempotency_key` — a retry must
+        return the existing booking rather than create a second one.
+
+        This is *not* the double-booking guard: no calendar API offers an
+        atomic "create if free". Serialization happens in our database (see
+        `scheduling.service`), and the calendar write follows it.
+        """
 
     @abstractmethod
     async def cancel(self, tenant_id: uuid.UUID, external_event_id: str) -> None: ...

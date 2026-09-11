@@ -13,12 +13,20 @@ live-call test.
 import uuid
 from typing import Any
 
+from redis.asyncio import Redis
+
 from app.core.logging import get_logger
 from app.modules.conversation.faq import answer_faq
 from app.modules.conversation.providers.base import EmbeddingProvider, LLMProvider
 from app.modules.conversation.qualification import record_answer
 from app.modules.escalation.service import create_callback_request
-from app.modules.tenants.models import AgentConfig
+from app.modules.scheduling.providers.base import CalendarProvider
+from app.modules.scheduling.tools import (
+    COULD_NOT_CHECK,
+    handle_book_appointment,
+    handle_check_availability,
+)
+from app.modules.tenants.models import AgentConfig, Tenant
 
 logger = get_logger(__name__)
 
@@ -58,6 +66,63 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "check_availability",
+            "description": (
+                "Find open appointment times. Call this before offering any "
+                "time to the caller — never guess or invent availability."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "description": "What the caller wants to come in for",
+                    },
+                    "preferred_time": {
+                        "type": "string",
+                        "description": (
+                            "The caller's preferred date/time in the business's local "
+                            "time as ISO 8601, e.g. 2026-09-15T09:00. Omit if they "
+                            "have no preference."
+                        ),
+                    },
+                },
+                "required": ["service"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "book_appointment",
+            "description": (
+                "Book a specific time that check_availability offered. Confirm "
+                "the time and the caller's name back to them first."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service": {"type": "string"},
+                    "starts_at": {
+                        "type": "string",
+                        "description": (
+                            "Start time in the business's local time as ISO 8601, "
+                            "e.g. 2026-09-15T09:00"
+                        ),
+                    },
+                    "customer_name": {"type": "string"},
+                    "customer_email": {
+                        "type": "string",
+                        "description": "Optional — ask for it to send an email confirmation",
+                    },
+                },
+                "required": ["service", "starts_at", "customer_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "request_callback",
             "description": (
                 "Take a voicemail/callback request when the caller asks for a "
@@ -78,20 +143,31 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
 
 
 class ToolExecutor:
-    def __init__(self, llm: LLMProvider, embeddings: EmbeddingProvider) -> None:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        embeddings: EmbeddingProvider,
+        calendar: CalendarProvider | None = None,
+        redis: Redis | None = None,
+    ) -> None:
         self._llm = llm
         self._embeddings = embeddings
+        # Optional so non-scheduling deployments (and unit tests) need no
+        # calendar wiring; the scheduling tools report unavailable instead.
+        self._calendar = calendar
+        self._redis = redis
 
     async def dispatch(
         self,
         *,
-        tenant_id: uuid.UUID,
+        tenant: Tenant,
         call_id: uuid.UUID,
         caller_e164: str,
         agent_config: AgentConfig,
         tool_name: str,
         arguments: dict[str, Any],
     ) -> str:
+        tenant_id = tenant.id
         try:
             match tool_name:
                 case "answer_faq":
@@ -101,6 +177,29 @@ class ToolExecutor:
                         arguments.get("question", ""),
                         self._llm,
                         self._embeddings,
+                    )
+                case "check_availability":
+                    if self._calendar is None:
+                        return COULD_NOT_CHECK
+                    return await handle_check_availability(
+                        tenant=tenant,
+                        calendar=self._calendar,
+                        service=arguments.get("service", ""),
+                        preferred_time=arguments.get("preferred_time"),
+                    )
+                case "book_appointment":
+                    if self._calendar is None or self._redis is None:
+                        return COULD_NOT_CHECK
+                    return await handle_book_appointment(
+                        tenant=tenant,
+                        calendar=self._calendar,
+                        redis=self._redis,
+                        call_id=call_id,
+                        service=arguments.get("service", ""),
+                        starts_at=arguments.get("starts_at", ""),
+                        customer_name=arguments.get("customer_name", ""),
+                        customer_phone=caller_e164,
+                        customer_email=arguments.get("customer_email"),
                     )
                 case "record_qualification_answer":
                     lead_id, score = await record_answer(

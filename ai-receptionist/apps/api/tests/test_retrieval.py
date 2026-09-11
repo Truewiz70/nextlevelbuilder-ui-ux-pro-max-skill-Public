@@ -64,7 +64,11 @@ async def test_relevant_chunk_ranks_first_and_is_tenant_scoped() -> None:
             other_doc = KnowledgeDoc(
                 tenant_id=tenant_b,
                 title="Other tenant hours",
-                content="We are open Monday through Friday, closed on weekends.",
+                # Same vocabulary as tenant A's hours doc plus one marker word,
+                # so a leaked chunk is identifiable in the results.
+                content=(
+                    "We are open Monday through Friday, closed on weekends. Tenantbmarker applies."
+                ),
             )
             session.add(other_doc)
             await session.flush()
@@ -78,7 +82,9 @@ async def test_relevant_chunk_ranks_first_and_is_tenant_scoped() -> None:
 
         assert results, "expected at least one relevant chunk"
         assert results[0].content == hours_doc.content
-        assert len(results) == 1  # insurance doc shares no vocabulary — filtered by distance
+        # The point of the test: tenant B's near-identical chunk must be
+        # absent entirely, not merely ranked lower.
+        assert not any("Tenantbmarker" in r.content for r in results)
     finally:
         with engine.begin() as conn:
             conn.execute(

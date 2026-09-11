@@ -73,7 +73,13 @@ async def test_new_agent_payload_carries_server_url_secret_and_tools() -> None:
     assert "tool-calls" in body["serverMessages"]
     assert "end-of-call-report" in body["serverMessages"]
     tool_names = {t["function"]["name"] for t in body["model"]["tools"]}
-    assert {"answer_faq", "record_qualification_answer", "request_callback"} == tool_names
+    assert {
+        "answer_faq",
+        "record_qualification_answer",
+        "check_availability",
+        "book_appointment",
+        "request_callback",
+    } == tool_names
     assert body["model"]["messages"][0]["content"] == "You are a receptionist."
     assert body["voice"]["voiceId"] == "voice-abc"
 

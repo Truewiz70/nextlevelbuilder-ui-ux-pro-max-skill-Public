@@ -37,6 +37,20 @@ class PhoneNumber(Base):
     vendor_agent_id: Mapped[str] = mapped_column(Text, default="")
 
 
+class Integration(Base):
+    """A tenant's connection to a third-party service. Credentials are Fernet
+    ciphertext — the key lives only in the environment, never the database."""
+
+    __tablename__ = "integrations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"))
+    provider: Mapped[str] = mapped_column(Text)
+    credentials_encrypted: Mapped[str] = mapped_column(Text)
+    config: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    status: Mapped[str] = mapped_column(Text, default="connected")
+
+
 class AgentConfig(Base):
     __tablename__ = "agent_configs"
 

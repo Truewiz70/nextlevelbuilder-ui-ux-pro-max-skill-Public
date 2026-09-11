@@ -11,11 +11,13 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.db import check_database
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
 from app.modules.conversation.providers import get_embedding_provider, get_llm_provider
+from app.modules.scheduling.providers import get_calendar_provider
 
 logger = get_logger(__name__)
 
@@ -29,6 +31,7 @@ async def lifespan(app: FastAPI):
     # replace the real providers post-lifespan, or this assignment wins).
     app.state.llm_provider = get_llm_provider(settings)
     app.state.embedding_provider = get_embedding_provider(settings)
+    app.state.calendar_provider = get_calendar_provider(settings)
     logger.info("startup", env=settings.app_env)
     yield
     await app.state.redis.aclose()

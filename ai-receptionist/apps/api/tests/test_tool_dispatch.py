@@ -5,8 +5,21 @@ callback flows are covered by the DB-backed integration tests."""
 import uuid
 
 from app.modules.conversation.tools import ToolExecutor
-from app.modules.tenants.models import AgentConfig
+from app.modules.tenants.models import AgentConfig, Tenant
 from tests.fakes import FakeEmbeddingProvider, FakeLLMProvider
+
+
+def _tenant() -> Tenant:
+    return Tenant(
+        id=uuid.uuid4(),
+        slug="test-practice",
+        name="Test Practice",
+        vertical="dental",
+        timezone="America/New_York",
+        business_hours={},
+        settings={},
+        status="active",
+    )
 
 
 def _agent_config() -> AgentConfig:
@@ -24,7 +37,7 @@ def _agent_config() -> AgentConfig:
 async def test_unknown_tool_name_returns_safe_fallback() -> None:
     executor = ToolExecutor(FakeLLMProvider(), FakeEmbeddingProvider())
     result = await executor.dispatch(
-        tenant_id=uuid.uuid4(),
+        tenant=_tenant(),
         call_id=uuid.uuid4(),
         caller_e164="+15550001111",
         agent_config=_agent_config(),
@@ -44,7 +57,7 @@ async def test_dispatch_exception_returns_safe_fallback_not_raise() -> None:
 
     executor = ToolExecutor(FakeLLMProvider(), ExplodingEmbeddingProvider())
     result = await executor.dispatch(
-        tenant_id=uuid.uuid4(),
+        tenant=_tenant(),
         call_id=uuid.uuid4(),
         caller_e164="+15550001111",
         agent_config=_agent_config(),

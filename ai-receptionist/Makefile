@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev worker seed provision migrate revision test lint fmt
+.PHONY: install up down db dev worker confirmations seed provision migrate revision test lint fmt
 
 install:
 	python3 -m venv $(VENV)
@@ -23,6 +23,11 @@ dev:
 
 worker:
 	cd apps/api && ../../$(PY) -m app.workers.post_call
+
+# Separate process from `worker`: confirmations must keep draining even when
+# post-call summarization is backed up behind a slow LLM.
+confirmations:
+	cd apps/api && ../../$(PY) -m app.workers.confirmations
 
 seed:
 	cd apps/api && ../../$(PY) scripts/seed_demo.py ../../config/tenants/example-dental.yaml

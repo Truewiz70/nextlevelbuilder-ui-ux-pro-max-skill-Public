@@ -16,6 +16,7 @@ from typing import Any
 import redis.asyncio as aioredis
 from sqlalchemy import select, update
 
+import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import get_settings
 from app.core.db import tenant_session
 from app.core.logging import configure_logging, get_logger
