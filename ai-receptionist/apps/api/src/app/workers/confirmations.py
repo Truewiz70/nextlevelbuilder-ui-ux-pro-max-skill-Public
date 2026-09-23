@@ -23,7 +23,7 @@ import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.db import admin_session, tenant_session
 from app.core.logging import configure_logging, get_logger
-from app.core.queue import CONFIRMATIONS_QUEUE, run_worker
+from app.core.queue import CONFIRMATIONS_QUEUE, reclaim_orphans, run_worker
 from app.modules.notifications.providers import get_email_provider, get_sms_provider
 from app.modules.notifications.providers.base import EmailProvider, SMSProvider
 from app.modules.notifications.service import send_email, send_sms
@@ -118,6 +118,7 @@ async def main() -> None:
         email=get_email_provider(settings),
         sms=get_sms_provider(settings),
     )
+    await reclaim_orphans(redis, CONFIRMATIONS_QUEUE)
     logger.info("confirmations_worker_started", queue=CONFIRMATIONS_QUEUE)
     try:
         await run_worker(

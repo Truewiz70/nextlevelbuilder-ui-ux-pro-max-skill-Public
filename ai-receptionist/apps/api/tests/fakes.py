@@ -13,6 +13,12 @@ from app.modules.conversation.providers.base import (
     EmbeddingProvider,
     LLMProvider,
 )
+from app.modules.crm.providers.base import (
+    ActivityRecord,
+    ContactRecord,
+    CRMProvider,
+    DealRecord,
+)
 from app.modules.notifications.providers.base import EmailProvider, SMSProvider
 from app.modules.scheduling.providers.base import (
     BookingRequest,
@@ -130,3 +136,38 @@ class FakeSMSProvider(SMSProvider):
             raise self.fail
         self.sent.append({"to": to, "body": body, "key": idempotency_key})
         return f"sms-{len(self.sent)}"
+
+
+class FakeCRMProvider(CRMProvider):
+    """In-memory CRM. Records every write and can be told to fail a specific
+    step exactly once — the thing needed to prove a resumed sync does not
+    repeat the steps that already succeeded."""
+
+    def __init__(self) -> None:
+        self.contacts: list[ContactRecord] = []
+        self.activities: list[ActivityRecord] = []
+        self.deals: list[DealRecord] = []
+        self.fail_contact: Exception | None = None
+        self.fail_activity: Exception | None = None
+        self.fail_deal: Exception | None = None
+
+    async def upsert_contact(self, tenant_id: uuid.UUID, contact: ContactRecord) -> str:
+        if self.fail_contact:
+            exc, self.fail_contact = self.fail_contact, None
+            raise exc
+        self.contacts.append(contact)
+        return f"contact-{len(self.contacts)}"
+
+    async def log_activity(self, tenant_id: uuid.UUID, activity: ActivityRecord) -> str:
+        if self.fail_activity:
+            exc, self.fail_activity = self.fail_activity, None
+            raise exc
+        self.activities.append(activity)
+        return f"activity-{len(self.activities)}"
+
+    async def create_deal(self, tenant_id: uuid.UUID, deal: DealRecord) -> str:
+        if self.fail_deal:
+            exc, self.fail_deal = self.fail_deal, None
+            raise exc
+        self.deals.append(deal)
+        return f"deal-{len(self.deals)}"

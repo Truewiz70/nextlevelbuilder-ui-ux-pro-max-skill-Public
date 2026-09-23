@@ -93,6 +93,25 @@ escalation:
     - caller is distressed or in severe pain
   callback_promise: "Someone from our team will call you back within one business hour."
 
+# CRM field mapping. Only qualification answers listed here are pushed —
+# writing to a property the practice never created fails the whole sync in
+# HubSpot, and inventing fields in someone's CRM is worse than omitting them.
+crm:
+  enabled: true
+  deal_pipeline: default
+  deal_title: "{service} — {name}"
+  stage_by_outcome:
+    appointment_booked: appointmentscheduled
+    lead_qualified: qualifiedtobuy
+    default: appointmentscheduled
+  contact_properties:      # qualification answer key -> CRM property name
+    pain: urgency
+    insurance: insurance_provider
+    patient_status: lifecyclestage
+  # A deal per call would flood the practice's pipeline with wrong numbers;
+  # only a booking or a scoring lead earns one.
+  deal_min_score: 30
+
 notifications:
   email_confirmation: true
   sms_confirmation: true

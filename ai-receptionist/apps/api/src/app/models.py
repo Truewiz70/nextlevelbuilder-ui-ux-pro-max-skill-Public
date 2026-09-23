@@ -12,16 +12,18 @@ imports exist for their registration side effect alone.
 """
 
 from app.modules.conversation import models as conversation_models
+from app.modules.crm import models as crm_models
 from app.modules.escalation import models as escalation_models
 from app.modules.notifications import models as notifications_models
 from app.modules.scheduling import models as scheduling_models
 from app.modules.telephony import models as telephony_models
 from app.modules.tenants import models as tenants_models
 
-# Add a module here the moment it declares its first ORM model (crm in Phase 6,
-# analytics in Phase 7).
+# Add a module here the moment it declares its first ORM model (analytics in
+# Phase 7).
 __all__ = [
     "conversation_models",
+    "crm_models",
     "escalation_models",
     "notifications_models",
     "scheduling_models",

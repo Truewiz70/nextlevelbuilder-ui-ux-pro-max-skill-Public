@@ -50,11 +50,13 @@ async def seed(config_path: Path, number: str) -> None:
             business_hours=tenant_cfg.get("business_hours", {}),
             # `settings` is the per-tenant policy blob the modules read at
             # runtime: service durations and notice period (scheduling),
-            # which confirmations to send (notifications).
+            # which confirmations to send (notifications), field mapping and
+            # deal rules (crm).
             settings={
                 "forbidden_topics": agent_cfg.get("forbidden_topics", []),
                 "scheduling": doc.get("scheduling", {}),
                 "notifications": doc.get("notifications", {}),
+                "crm": doc.get("crm", {}),
             },
         )
         session.add(tenant)

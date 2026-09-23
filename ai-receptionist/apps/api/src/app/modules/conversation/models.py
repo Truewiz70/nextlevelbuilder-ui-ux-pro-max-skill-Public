@@ -1,10 +1,11 @@
 """ORM models owned by the conversation module: knowledge base and leads."""
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Integer, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,3 +55,4 @@ class Lead(Base):
     qualification: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(Text, default="new")
     crm_contact_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    crm_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

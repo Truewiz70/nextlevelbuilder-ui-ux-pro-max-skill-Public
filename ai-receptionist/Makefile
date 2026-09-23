@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev worker confirmations seed provision migrate revision test lint fmt
+.PHONY: install up down db dev worker confirmations crm seed provision migrate revision test lint fmt
 
 install:
 	python3 -m venv $(VENV)
@@ -28,6 +28,10 @@ worker:
 # post-call summarization is backed up behind a slow LLM.
 confirmations:
 	cd apps/api && ../../$(PY) -m app.workers.confirmations
+
+# Separate again: a tenant's CRM being down must not stall confirmations.
+crm:
+	cd apps/api && ../../$(PY) -m app.workers.crm_sync
 
 seed:
 	cd apps/api && ../../$(PY) scripts/seed_demo.py ../../config/tenants/example-dental.yaml

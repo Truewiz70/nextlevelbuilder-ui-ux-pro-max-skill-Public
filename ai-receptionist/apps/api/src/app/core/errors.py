@@ -43,10 +43,25 @@ class WebhookSignatureError(AppError):
 
 
 class IntegrationError(AppError):
-    """A downstream integration (calendar, CRM, email, SMS) failed."""
+    """A downstream integration (calendar, CRM, email, SMS) failed.
+
+    Treated as transient by the job queue: worth retrying with backoff.
+    """
 
     status_code = 502
     code = "integration_error"
+
+
+class PermanentIntegrationError(IntegrationError):
+    """The integration rejected the request and will keep rejecting it —
+    a malformed payload, a revoked grant, a deleted object.
+
+    The queue dead-letters these immediately rather than retrying. Retrying a
+    400 five times only delays the alert, and for a revoked grant it hammers
+    a vendor that has already said no.
+    """
+
+    code = "permanent_integration_error"
 
 
 def register_error_handlers(app: FastAPI) -> None:

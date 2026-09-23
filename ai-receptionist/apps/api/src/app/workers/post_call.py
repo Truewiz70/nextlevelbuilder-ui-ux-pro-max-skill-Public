@@ -2,8 +2,10 @@
 summary via the fast model. Runs off `queue:post_call`; every step is
 idempotent so a crash mid-batch is safe to retry.
 
-CRM sync (Phase 6) adds a further idempotent step here — never on the
-webhook hot path.
+CRM sync is *enqueued* from here rather than performed here, so that a
+tenant's CRM being down can never delay call classification. It is enqueued
+after classification so the CRM receives the summary and outcome rather than
+a bare phone number.
 
 Run: python -m app.workers.post_call
 """
@@ -14,13 +16,14 @@ import uuid
 from typing import Any
 
 import redis.asyncio as aioredis
+from redis.asyncio import Redis
 from sqlalchemy import select, update
 
 import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import get_settings
 from app.core.db import tenant_session
 from app.core.logging import configure_logging, get_logger
-from app.core.queue import POST_CALL_QUEUE, run_worker
+from app.core.queue import CRM_QUEUE, POST_CALL_QUEUE, enqueue, reclaim_orphans, run_worker
 from app.modules.conversation.pricing import estimate_cost_cents
 from app.modules.conversation.providers import get_llm_provider
 from app.modules.conversation.providers.base import LLMProvider
@@ -30,7 +33,9 @@ from app.modules.telephony.models import Call, Transcript
 logger = get_logger(__name__)
 
 
-async def handle_post_call(job: dict[str, Any], *, llm: LLMProvider | None = None) -> None:
+async def handle_post_call(
+    job: dict[str, Any], *, llm: LLMProvider | None = None, redis: Redis | None = None
+) -> None:
     llm = llm or get_llm_provider(get_settings())
     tenant_id = uuid.UUID(job["tenant_id"])
     call_id = uuid.UUID(job["call_id"])
@@ -39,6 +44,11 @@ async def handle_post_call(job: dict[str, Any], *, llm: LLMProvider | None = Non
         call = await session.get(Call, call_id)
         if call is None or call.outcome is not None:
             return  # already processed (or the call vanished) — idempotent no-op
+        duration_seconds = (
+            int((call.ended_at - call.started_at).total_seconds())
+            if call.ended_at and call.started_at
+            else 0
+        )
         turns = (
             await session.execute(select(Transcript.turns).where(Transcript.call_id == call_id))
         ).scalar_one_or_none() or []
@@ -62,15 +72,35 @@ async def handle_post_call(job: dict[str, Any], *, llm: LLMProvider | None = Non
         **result.classification,
     )
 
+    # Hand off to the CRM worker. Enqueued, not called: a tenant's CRM being
+    # down must never delay or fail call classification, which has already
+    # been committed above.
+    if redis is not None:
+        await enqueue(
+            redis,
+            CRM_QUEUE,
+            {
+                "type": "crm_sync",
+                "tenant_id": str(tenant_id),
+                "call_id": str(call_id),
+                "outcome": result.classification.get("outcome"),
+                "summary": result.classification.get("summary", ""),
+                "duration_seconds": duration_seconds,
+            },
+        )
+
 
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     redis = aioredis.from_url(settings.redis_url)
     llm = get_llm_provider(settings)  # constructed once, reused across jobs
+    await reclaim_orphans(redis, POST_CALL_QUEUE)
     logger.info("post_call_worker_started", queue=POST_CALL_QUEUE)
     try:
-        await run_worker(redis, POST_CALL_QUEUE, functools.partial(handle_post_call, llm=llm))
+        await run_worker(
+            redis, POST_CALL_QUEUE, functools.partial(handle_post_call, llm=llm, redis=redis)
+        )
     finally:
         await redis.aclose()
 

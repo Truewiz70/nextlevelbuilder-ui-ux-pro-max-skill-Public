@@ -59,10 +59,14 @@ The background workers are separate processes — run each in its own terminal:
 ```bash
 make worker                   # post-call: transcripts, summaries, lead scoring
 make confirmations            # appointment confirmation email + SMS
+make crm                      # CRM sync (HubSpot): contact, activity, deal
 ```
 
 They are deliberately not one process: confirmations must keep draining even
-when post-call summarization is backed up behind a slow LLM.
+when post-call summarization is backed up behind a slow LLM, and a tenant's
+CRM being down must never delay a confirmation a customer is waiting on. All
+three share the retry/backoff/dead-letter queue in `core/queue.py` — a job a
+handler fails to process is retried with jitter, not lost.
 
 > **Database roles.** The application connects as `receptionist`, which is
 > **not** a superuser. This is load-bearing, not incidental: Postgres
