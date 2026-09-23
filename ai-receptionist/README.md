@@ -54,12 +54,31 @@ make test
 make lint
 ```
 
+The background workers are separate processes — run each in its own terminal:
+
+```bash
+make worker                   # post-call: transcripts, summaries, lead scoring
+make confirmations            # appointment confirmation email + SMS
+```
+
+They are deliberately not one process: confirmations must keep draining even
+when post-call summarization is backed up behind a slow LLM.
+
+> **Database roles.** The application connects as `receptionist`, which is
+> **not** a superuser. This is load-bearing, not incidental: Postgres
+> superusers bypass row-level security unconditionally, so running the app as
+> one silently voids every tenant-isolation policy while leaving them looking
+> correct in `\d`. Compose bootstraps as `postgres` and creates the app role
+> via `infra/postgres/init/`. `tests/test_tenant_isolation.py` fails loudly if
+> this is ever undone.
+
 ## Repository layout
 
 ```
 apps/api/          FastAPI modular monolith (source of truth for the backend)
 apps/dashboard/    Next.js dashboard (scaffolded in Phase 7)
 config/tenants/    Example tenant configurations (dental, legal)
+infra/postgres/    Container init: extensions + the non-superuser app role
 infra/             Deploy blueprints (Railway/Vercel) — populated in Phase 8
 .github/workflows/ CI (activates when this folder becomes the repo root)
 ```
