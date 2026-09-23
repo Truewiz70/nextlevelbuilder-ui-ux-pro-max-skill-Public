@@ -51,7 +51,7 @@ tenant's YAML:
 ```yaml
 agent:
   voice_provider: 11labs               # ← selects the vendor
-  voice_id: 21m00Tcm4TlvDq8ikWAM       # ← from the ElevenLabs dashboard
+  voice_id: u91OxrFDaRINovYRRue2       # ← from the ElevenLabs dashboard
   voice_model: eleven_turbo_v2_5       # ← low-latency model
 ```
 
@@ -63,8 +63,11 @@ Three things worth knowing:
 - **Use a turbo/flash model.** The standard multilingual model adds enough
   latency to be audible on a phone call, against the sub-second budget
   (NFR-01).
-- **Voice ids in the example configs are ElevenLabs stock voices** — verify or
-  replace them with your own picks.
+- **Voice ids in the example configs are picked ElevenLabs library voices**
+  ("Diane" for dental, "Mike" for legal) chosen for the persona in each
+  tenant's `agent.persona` — not arbitrary stock defaults. Swap them for your
+  own picks; the fit matters, since for a receptionist this voice is the
+  caller's first impression of the business.
 
 Re-run `make provision` after changing any voice setting.
 

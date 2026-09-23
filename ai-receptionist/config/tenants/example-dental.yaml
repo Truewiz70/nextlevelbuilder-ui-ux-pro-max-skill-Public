@@ -20,11 +20,13 @@ agent:
   # Requires your ElevenLabs API key added in the Vapi dashboard under
   # Provider Keys (see docs/runbooks/connecting-the-voice-system.md).
   #
-  # voice_id below is an ElevenLabs stock voice ("Rachel"); replace it with
-  # whichever voice you pick in the ElevenLabs dashboard (Voices → the id
-  # shown on the voice).
+  # "Diane - Friendly Warm Female Voice": built explicitly as a warm,
+  # professional receptionist voice with clear diction — matches the "Amy"
+  # persona below without an off-vertical framing (unlike alternatives built
+  # for other industries). Alternative if you want to differentiate accent:
+  # "Amara - Warm African-British Professional" (fFAtoTPtP0TtMyhbR3L9).
   voice_provider: 11labs
-  voice_id: 21m00Tcm4TlvDq8ikWAM
+  voice_id: u91OxrFDaRINovYRRue2
   # Low-latency model: the standard multilingual model adds enough delay to
   # be audible on a phone call (NFR-01 budget).
   voice_model: eleven_turbo_v2_5

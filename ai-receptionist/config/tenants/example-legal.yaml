@@ -16,10 +16,13 @@ tenant:
 agent:
   # ElevenLabs voice, spoken through the Vapi agent — see the dental config
   # and docs/runbooks/connecting-the-voice-system.md for setup.
-  # voice_id below is an ElevenLabs stock voice ("Adam"); replace it with
-  # whichever voice you pick in the ElevenLabs dashboard.
+  # "Mike - Reception Desk Pro": calm pace, confident delivery, built for
+  # phone-line clarity — professional and discreet without reading as warm/
+  # casual, which would undercut this persona's deliberate formality.
+  # Alternative if you want more gravitas: "Edmund - Brit Customer Care"
+  # (mlvXFS1MP5qndOFkWz1M).
   voice_provider: 11labs
-  voice_id: pNInz6obpgDQGcFmaJgB
+  voice_id: xM0tQVvjAbr3ksKlp1EE
   voice_model: eleven_turbo_v2_5
   language: en
   first_message: >-
@@ -44,8 +47,13 @@ qualification:
     options: [family, personal_injury, estate, business, criminal, other]
   - key: urgency
     question: "Is there a court date or deadline coming up?"
-    type: text
-    scoring: { has_deadline: 30 }
+    type: boolean
+    # The question is already phrased yes/no; `scoring` keys off the parsed
+    # true/false answer (the boolean branch of score_answer, same pattern as
+    # dental's `pain` question) rather than the caller's literal words. A
+    # `type: text` answer here would score against the raw utterance, which
+    # would only ever match the literal string "has_deadline" — i.e. never.
+    scoring: { true: 30 }
   - key: existing_client
     question: "Are you an existing client of the firm?"
     type: boolean
