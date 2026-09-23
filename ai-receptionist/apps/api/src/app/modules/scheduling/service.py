@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.db import tenant_session
+from app.core.errors import NotFoundError
 from app.core.logging import get_logger
 from app.modules.scheduling.availability import available_slots
 from app.modules.scheduling.models import Appointment
@@ -195,6 +196,45 @@ async def _release(tenant_id: uuid.UUID, appointment_id: uuid.UUID) -> None:
             .where(Appointment.id == appointment_id)
             .values(status="cancelled", idempotency_key=None)
         )
+
+
+async def cancel_appointment(
+    *, tenant_id: uuid.UUID, appointment_id: uuid.UUID, calendar: CalendarProvider
+) -> Appointment:
+    """Dashboard-initiated cancellation — distinct from `_release` in intent
+    (undoing a real, successful booking, not rolling back a failed one) even
+    though the DB write is the same. Calendar-first here, unlike booking:
+    there is no concurrent "other cancellation" to race, so there's no
+    reservation to protect by writing our own row first.
+    """
+    async with tenant_session(tenant_id) as session:
+        appointment = (
+            await session.execute(
+                select(Appointment).where(
+                    Appointment.id == appointment_id, Appointment.tenant_id == tenant_id
+                )
+            )
+        ).scalar_one_or_none()
+        if appointment is not None:
+            session.expunge(appointment)
+    if appointment is None:
+        raise NotFoundError(f"no appointment {appointment_id}")
+    if appointment.status != "confirmed":
+        # Already cancelled/completed/no-show: cancelling again is a no-op,
+        # not an error — the dashboard button being clicked twice (a slow
+        # network, an impatient double-click) must not surface a failure.
+        return appointment
+
+    if appointment.external_event_id:
+        await calendar.cancel(tenant_id, appointment.external_event_id)
+    await _release(tenant_id, appointment_id)
+
+    async with tenant_session(tenant_id) as session:
+        updated = (
+            await session.execute(select(Appointment).where(Appointment.id == appointment_id))
+        ).scalar_one()
+        session.expunge(updated)
+        return updated
 
 
 def default_window(now: datetime, days: int = 14) -> tuple[datetime, datetime]:

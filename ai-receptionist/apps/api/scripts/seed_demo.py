@@ -23,10 +23,11 @@ import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import get_settings
 from app.core.db import admin_session, tenant_session
 from app.core.logging import configure_logging, get_logger
+from app.core.security import hash_password
 from app.modules.conversation.knowledge import ingest_document
 from app.modules.conversation.models import KnowledgeDoc
 from app.modules.conversation.providers import get_embedding_provider
-from app.modules.tenants.models import AgentConfig, PhoneNumber, Tenant
+from app.modules.tenants.models import AgentConfig, PhoneNumber, Tenant, User
 
 logger = get_logger(__name__)
 
@@ -82,6 +83,18 @@ async def seed(config_path: Path, number: str) -> None:
         )
         session.add(PhoneNumber(tenant_id=tenant_id, e164=number))
 
+        dashboard_cfg = doc.get("dashboard", {})
+        if dashboard_cfg.get("owner_email"):
+            session.add(
+                User(
+                    tenant_id=tenant_id,
+                    email=dashboard_cfg["owner_email"],
+                    display_name=dashboard_cfg.get("owner_name", ""),
+                    role="owner",
+                    password_hash=hash_password(dashboard_cfg["owner_password"]),
+                )
+            )
+
         for item in doc.get("knowledge", []):
             knowledge_doc = KnowledgeDoc(
                 tenant_id=tenant_id, title=item["title"], content=item["content"]
@@ -91,6 +104,13 @@ async def seed(config_path: Path, number: str) -> None:
             knowledge_doc_ids.append(knowledge_doc.id)
 
     logger.info("tenant_seeded", slug=tenant_cfg["slug"], tenant_id=str(tenant_id), number=number)
+    if dashboard_cfg.get("owner_email"):
+        logger.info(
+            "dashboard_login_created",
+            slug=tenant_cfg["slug"],
+            email=dashboard_cfg["owner_email"],
+            note="demo password from the tenant YAML — never do this for a real tenant",
+        )
 
     if not knowledge_doc_ids:
         return

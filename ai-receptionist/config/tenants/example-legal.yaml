@@ -97,3 +97,10 @@ notifications:
   email_confirmation: true
   sms_confirmation: true
   sms_reminder_hours_before: 24
+
+# Dashboard login for the demo owner account (Phase 7). See the dental
+# config for why this only ever belongs in a demo file.
+dashboard:
+  owner_email: owner@hartleylaw.example
+  owner_name: Morgan Hartley
+  owner_password: demo-password-not-for-production

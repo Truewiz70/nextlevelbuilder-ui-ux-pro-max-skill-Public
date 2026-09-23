@@ -42,6 +42,26 @@ class WebhookSignatureError(AppError):
     code = "invalid_webhook_signature"
 
 
+class AuthenticationError(AppError):
+    """No valid credentials at all — missing/expired/malformed token, or a
+    login attempt with the wrong email/password. Deliberately the same
+    message and code for "no such user" and "wrong password" (see
+    tenants.routes.login) so a failed login can't be used to enumerate
+    which emails exist on a tenant."""
+
+    status_code = 401
+    code = "authentication_required"
+
+
+class AuthorizationError(AppError):
+    """Valid credentials, insufficient role — e.g. a viewer calling an
+    admin-only route. Distinct from AuthenticationError (401): the caller
+    is who they say they are, they just can't do this."""
+
+    status_code = 403
+    code = "forbidden"
+
+
 class IntegrationError(AppError):
     """A downstream integration (calendar, CRM, email, SMS) failed.
 

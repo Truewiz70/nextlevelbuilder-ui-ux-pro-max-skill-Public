@@ -19,6 +19,8 @@ dependencies = [
     "anthropic>=0.40",
     "voyageai>=0.3",
     "pgvector>=0.3",
+    "pyjwt>=2.9",
+    "bcrypt>=4.2",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +52,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/**" = ["E501"]  # aligned SQL DDL beats wrapped DDL
+# FastAPI's dependency-injection pattern is Depends(...) as an argument
+# default — that's the API, not a mutable-default bug B008 exists to catch.
+"src/app/modules/*/*routes.py" = ["B008"]
+"src/app/core/auth.py" = ["B008"]  # defines the Depends(...) targets themselves
 
 [tool.mypy]
 python_version = "3.12"

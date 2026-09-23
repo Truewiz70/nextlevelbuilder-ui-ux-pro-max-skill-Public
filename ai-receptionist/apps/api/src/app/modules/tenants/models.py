@@ -1,5 +1,5 @@
 """ORM models owned by the tenants module: tenants, phone numbers, agent
-configs. Schema is defined in migrations; these map to it."""
+configs, dashboard users. Schema is defined in migrations; these map to it."""
 
 import uuid
 from datetime import datetime
@@ -23,6 +23,21 @@ class Tenant(Base):
     business_hours: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     status: Mapped[str] = mapped_column(Text, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+
+
+class User(Base):
+    """A dashboard login, scoped to one tenant. `role` is a flat hierarchy —
+    owner > admin > viewer — checked by `core.auth.require_role`."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"))
+    email: Mapped[str] = mapped_column(Text)
+    display_name: Mapped[str] = mapped_column(Text, default="")
+    role: Mapped[str] = mapped_column(Text, default="viewer")
+    password_hash: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
 

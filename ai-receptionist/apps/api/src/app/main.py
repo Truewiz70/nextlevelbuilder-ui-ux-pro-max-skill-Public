@@ -75,7 +75,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from app.modules.telephony.routes import router as telephony_router
 
     app.include_router(telephony_router, prefix="/webhooks/voice", tags=["webhooks"])
-    # Phase 4+: tenants, knowledge, calls, analytics API routers.
+
+    # Dashboard API (Phase 7). Each router owns its own auth: login is public
+    # and oauth_router's /callback is state-token-authenticated (see its
+    # module docstring — not a gap, its trust model is just different from
+    # everything else here); every other route requires a bearer token via
+    # core.auth dependencies. There is no blanket auth applied at this level,
+    # so a route that forgets its dependency is a bug in that router, not
+    # something this file can paper over by guessing which prefixes need
+    # protecting.
+    from app.modules.analytics.routes import router as analytics_router
+    from app.modules.crm.routes import router as crm_router
+    from app.modules.escalation.routes import router as callbacks_router
+    from app.modules.scheduling.routes import router as appointments_router
+    from app.modules.telephony.dashboard_routes import router as calls_router
+    from app.modules.tenants.oauth_routes import router as oauth_router
+    from app.modules.tenants.routes import router as tenants_router
+
+    for dashboard_router in (
+        tenants_router,
+        oauth_router,
+        calls_router,
+        appointments_router,
+        callbacks_router,
+        analytics_router,
+        crm_router,
+    ):
+        app.include_router(dashboard_router, prefix="/api/v1", tags=["dashboard"])
 
     return app
 

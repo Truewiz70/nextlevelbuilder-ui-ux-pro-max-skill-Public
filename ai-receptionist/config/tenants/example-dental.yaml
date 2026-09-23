@@ -118,3 +118,13 @@ notifications:
   email_confirmation: true
   sms_confirmation: true
   sms_reminder_hours_before: 24
+
+# Dashboard login for the demo owner account (Phase 7). `make seed` hashes
+# this password and creates the user; it exists only to make the demo
+# reachable end-to-end without a signup flow. Never put a real password in a
+# config file — a production tenant gets its owner account through an
+# invite flow instead (see apps/dashboard's known-gaps note).
+dashboard:
+  owner_email: owner@brightsmile.example
+  owner_name: Jamie Rivera
+  owner_password: demo-password-not-for-production

@@ -23,6 +23,17 @@ class Settings(BaseSettings):
     api_port: int = 8000
     secret_key: str = Field(default="dev-only-secret", description="JWT / signing key")
     cors_origins: str = "http://localhost:3000"
+    # Publicly reachable base URL of the Next.js dashboard. Used only to build
+    # the browser redirect at the end of an OAuth connect flow (the API
+    # redirects the browser back to {dashboard}/settings?connected=... after
+    # exchanging the provider's authorization code) — the dashboard never
+    # calls this URL itself.
+    dashboard_base_url: str = "http://localhost:3000"
+    # JWT lifetimes. Short-lived on purpose: no refresh-token/session-revocation
+    # mechanism exists yet (Future improvement, PHASE-7 doc) — a token that
+    # leaks is only useful until it expires.
+    access_token_ttl_minutes: int = 60
+    oauth_state_ttl_minutes: int = 10
 
     # Data stores
     database_url: str = "postgresql+asyncpg://receptionist:receptionist@localhost:5432/receptionist"
