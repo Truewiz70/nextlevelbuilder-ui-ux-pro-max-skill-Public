@@ -35,3 +35,19 @@ async def _reset_db_engine():
         await db_module._engine.dispose()
         db_module._engine = None
         db_module._session_factory = None
+
+
+@pytest.fixture(autouse=True)
+def _clear_rate_limit_counters():
+    """Login throttle counters live in Redis for 15 minutes and are keyed by
+    client address — which is the same ("testclient") for every route test —
+    so without this they would leak between tests and across suite runs."""
+    if _reachable("localhost", 6379):
+        import redis
+
+        client = redis.Redis()
+        keys = list(client.scan_iter("rl:*"))
+        if keys:
+            client.delete(*keys)
+        client.close()
+    yield

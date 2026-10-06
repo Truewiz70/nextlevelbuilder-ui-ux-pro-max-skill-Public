@@ -34,7 +34,14 @@ router = APIRouter()
 async def login(body: LoginRequest, request: Request) -> LoginResponse:
     settings: Settings = request.app.state.settings
     result = await login_user(
-        tenant_slug=body.tenant_slug, email=body.email, password=body.password, settings=settings
+        tenant_slug=body.tenant_slug,
+        email=body.email,
+        password=body.password,
+        settings=settings,
+        redis=request.app.state.redis,
+        # Behind the platform's proxy this is the forwarded client address
+        # (uvicorn --proxy-headers; see docker-entrypoint.sh).
+        client_ip=request.client.host if request.client else "unknown",
     )
     return LoginResponse(
         access_token=result.access_token,

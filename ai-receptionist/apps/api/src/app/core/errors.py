@@ -53,6 +53,18 @@ class AuthenticationError(AppError):
     code = "authentication_required"
 
 
+class RateLimitedError(AppError):
+    """Too many attempts. Carries `Retry-After` so well-behaved clients (and
+    the dashboard) can tell the user how long to wait."""
+
+    status_code = 429
+    code = "too_many_attempts"
+
+    def __init__(self, message: str = "", *, retry_after_seconds: int = 60) -> None:
+        super().__init__(message)
+        self.headers = {"Retry-After": str(max(1, retry_after_seconds))}
+
+
 class AuthorizationError(AppError):
     """Valid credentials, insufficient role — e.g. a viewer calling an
     admin-only route. Distinct from AuthenticationError (401): the caller
@@ -93,4 +105,5 @@ def register_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": {"code": exc.code, "message": exc.message}},
+            headers=getattr(exc, "headers", None),
         )

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # mechanism exists yet (Future improvement, PHASE-7 doc) — a token that
     # leaks is only useful until it expires.
     access_token_ttl_minutes: int = 60
+    # Login throttling (core/ratelimit.py). Counted per attempt, refunded on
+    # success, so these are effectively "failed attempts per window".
+    login_window_seconds: int = 900
+    login_max_attempts_per_account: int = 10
+    login_max_attempts_per_ip: int = 60
     oauth_state_ttl_minutes: int = 10
 
     # Data stores

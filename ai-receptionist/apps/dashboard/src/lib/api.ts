@@ -49,11 +49,17 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return (await res.json()) as T;
 }
 
-export async function apiLogin<T>(body: unknown): Promise<T> {
+// `clientIp` is the browser's address. This server is the API's only direct
+// caller, so without forwarding it the API would see every user's login as
+// coming from one IP and its per-IP throttle would punish everyone together.
+export async function apiLogin<T>(body: unknown, clientIp?: string): Promise<T> {
   const res = await fetch(`${BASE}/api/v1/auth/login`, {
     method: "POST",
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(clientIp ? { "X-Forwarded-For": clientIp } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw await parseError(res);
