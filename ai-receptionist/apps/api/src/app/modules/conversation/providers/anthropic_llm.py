@@ -13,7 +13,7 @@ disables it and sets a low effort. Haiku 4.5 does not support the
 
 from typing import Any
 
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, Timeout
 
 from app.core.config import Settings
 from app.modules.conversation.providers.base import (
@@ -28,7 +28,11 @@ class AnthropicLLMProvider(LLMProvider):
         # `or None` lets the SDK fall back to its own credential resolution
         # (env var, OAuth profile) instead of hard-overriding with an empty
         # string when the setting is unconfigured.
-        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+        self._client = AsyncAnthropic(
+            api_key=settings.anthropic_api_key or None,
+            timeout=Timeout(settings.llm_timeout_seconds, connect=5.0),
+            max_retries=settings.llm_max_retries,
+        )
         self._primary_model = settings.llm_model_primary
         self._fast_model = settings.llm_model_fast
 

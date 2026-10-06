@@ -19,7 +19,11 @@ from app.modules.conversation.providers.base import EmbeddingProvider
 
 class VoyageEmbeddingProvider(EmbeddingProvider):
     def __init__(self, settings: Settings) -> None:
-        self._client = voyageai.AsyncClient(api_key=settings.voyage_api_key or None)
+        self._client = voyageai.AsyncClient(
+            api_key=settings.voyage_api_key or None,
+            max_retries=settings.embedding_max_retries,
+            timeout=settings.embedding_timeout_seconds,
+        )
         self._model = settings.embedding_model
 
     async def embed(self, texts: list[str], *, for_query: bool = False) -> list[list[float]]:

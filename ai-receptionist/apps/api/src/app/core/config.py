@@ -60,11 +60,18 @@ class Settings(BaseSettings):
 
     # LLM
     anthropic_api_key: str = ""
+    # The SDK defaults (10-minute read timeout, 2 retries) are meant for batch
+    # work; a caller is on the phone. These bound a single upstream attempt;
+    # `tool_deadline_seconds` below bounds the whole tool call.
+    llm_timeout_seconds: float = 30.0
+    llm_max_retries: int = 2
     llm_model_primary: str = "claude-sonnet-5"
     llm_model_fast: str = "claude-haiku-4-5"
 
     # Embeddings
     voyage_api_key: str = ""
+    embedding_timeout_seconds: float = 15.0
+    embedding_max_retries: int = 1
     embedding_model: str = "voyage-3.5"
     embedding_dimensions: int = 1024
 
@@ -78,6 +85,12 @@ class Settings(BaseSettings):
 
     # Observability
     sentry_dsn: str = ""
+
+    # Hard ceiling on a read-only in-call tool (FAQ, availability), covering
+    # every upstream hop and retry inside it. Past this the caller gets the
+    # tool's spoken fallback instead of silence. Not applied to booking: see
+    # ToolExecutor.
+    tool_deadline_seconds: float = 8.0
 
     # Guardrails
     max_call_duration_seconds: int = 900

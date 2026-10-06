@@ -49,6 +49,7 @@ async def vapi_webhook(request: Request) -> dict[str, Any]:
             request.app.state.embedding_provider,
             calendar=request.app.state.calendar_provider,
             redis=request.app.state.redis,
+            read_deadline_seconds=settings.tool_deadline_seconds,
         )
 
         results = []

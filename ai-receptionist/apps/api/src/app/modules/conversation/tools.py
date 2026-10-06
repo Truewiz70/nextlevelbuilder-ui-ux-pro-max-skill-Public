@@ -1,8 +1,14 @@
 """In-call tool executor: dispatches Vapi tool-call requests to the right
-handler and returns spoken-language results within the hot-path latency
-budget (<2s target per tool, Phase 1 §3.3). No tool here performs
-synchronous external-integration I/O — scheduling and CRM sync land in
-Phase 5/6 on the async post-call path.
+handler and returns spoken-language results while the caller waits (Phase 1
+§3.3 targets <2s per tool).
+
+Some tools do call out synchronously — `answer_faq` (embedding + LLM) and the
+calendar tools. The two read-only ones run under a hard deadline
+(`read_deadline_seconds`) and fall back to a spoken message rather than leave
+the caller in silence. `book_appointment` is deliberately *not* run under one:
+cancelling it mid-flight would skip its release-on-failure path (cancellation
+is not an `Exception`) and could strand a reserved slot, so it relies on the
+calendar client's own short timeout instead.
 
 TOOL_SCHEMAS follows the standard function-calling shape (type/function/
 name/description/parameters) Vapi's docs describe; not yet contract-tested
@@ -10,13 +16,15 @@ against the live sandbox — verify alongside the Vapi adapter during the M1
 live-call test.
 """
 
+import asyncio
 import uuid
+from collections.abc import Awaitable
 from typing import Any
 
 from redis.asyncio import Redis
 
 from app.core.logging import get_logger
-from app.modules.conversation.faq import answer_faq
+from app.modules.conversation.faq import NO_ANSWER_FALLBACK, answer_faq
 from app.modules.conversation.providers.base import EmbeddingProvider, LLMProvider
 from app.modules.conversation.qualification import record_answer
 from app.modules.escalation.service import create_callback_request
@@ -149,7 +157,9 @@ class ToolExecutor:
         embeddings: EmbeddingProvider,
         calendar: CalendarProvider | None = None,
         redis: Redis | None = None,
+        read_deadline_seconds: float = 8.0,
     ) -> None:
+        self._read_deadline = read_deadline_seconds
         self._llm = llm
         self._embeddings = embeddings
         # Optional so non-scheduling deployments (and unit tests) need no
@@ -171,21 +181,29 @@ class ToolExecutor:
         try:
             match tool_name:
                 case "answer_faq":
-                    return await answer_faq(
-                        tenant_id,
-                        call_id,
-                        arguments.get("question", ""),
-                        self._llm,
-                        self._embeddings,
+                    return await self._within_deadline(
+                        tool_name,
+                        answer_faq(
+                            tenant_id,
+                            call_id,
+                            arguments.get("question", ""),
+                            self._llm,
+                            self._embeddings,
+                        ),
+                        fallback=NO_ANSWER_FALLBACK,
                     )
                 case "check_availability":
                     if self._calendar is None:
                         return COULD_NOT_CHECK
-                    return await handle_check_availability(
-                        tenant=tenant,
-                        calendar=self._calendar,
-                        service=arguments.get("service", ""),
-                        preferred_time=arguments.get("preferred_time"),
+                    return await self._within_deadline(
+                        tool_name,
+                        handle_check_availability(
+                            tenant=tenant,
+                            calendar=self._calendar,
+                            service=arguments.get("service", ""),
+                            preferred_time=arguments.get("preferred_time"),
+                        ),
+                        fallback=COULD_NOT_CHECK,
                     )
                 case "book_appointment":
                     if self._calendar is None or self._redis is None:
@@ -230,3 +248,13 @@ class ToolExecutor:
         except Exception:
             logger.exception("tool_dispatch_failed", tool_name=tool_name, tenant_id=str(tenant_id))
             return "Sorry, I had trouble with that — let me note it down for the team."
+
+    async def _within_deadline(self, tool_name: str, work: Awaitable[str], *, fallback: str) -> str:
+        try:
+            async with asyncio.timeout(self._read_deadline):
+                return await work
+        except TimeoutError:
+            logger.warning(
+                "tool_deadline_exceeded", tool_name=tool_name, deadline_seconds=self._read_deadline
+            )
+            return fallback
