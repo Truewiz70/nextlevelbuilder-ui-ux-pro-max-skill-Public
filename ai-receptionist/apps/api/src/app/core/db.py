@@ -11,6 +11,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -54,6 +55,7 @@ async def tenant_session(tenant_id: uuid.UUID) -> AsyncIterator[AsyncSession]:
     0001) and `admin_session()` clears it explicitly for the same reason.
     """
     factory = get_session_factory()
+    sentry_sdk.set_tag("tenant_id", str(tenant_id))  # no-op when reporting is disabled
     async with factory() as session, session.begin():
         await session.execute(
             text("SELECT set_config('app.tenant_id', :tid, true)"), {"tid": str(tenant_id)}

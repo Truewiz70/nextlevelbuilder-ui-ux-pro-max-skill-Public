@@ -16,6 +16,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import check_database, ensure_rls_enforced
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
+from app.core.observability import init_sentry
 from app.modules.conversation.providers import get_embedding_provider, get_llm_provider
 from app.modules.scheduling.providers import get_calendar_provider
 
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, json_output=settings.app_env != "development")
+    init_sentry(settings, service="api")
 
     app = FastAPI(
         title="AI Receptionist API",

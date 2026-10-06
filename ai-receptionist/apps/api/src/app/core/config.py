@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     # ToolExecutor.
     tool_deadline_seconds: float = 8.0
 
+    # Error reporting. Empty DSN = disabled (see core/observability.py).
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.0
+    app_release: str = ""  # git SHA; falls back to the platform's commit variable
+
     # Guardrails
     max_call_duration_seconds: int = 900
     tenant_daily_spend_cap_usd: float = 50.0

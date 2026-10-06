@@ -22,6 +22,7 @@ import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.db import admin_session, ensure_rls_enforced, tenant_session
 from app.core.logging import configure_logging, get_logger
+from app.core.observability import init_sentry
 from app.core.queue import (
     CONFIRMATIONS_QUEUE,
     reclaim_orphans,
@@ -117,6 +118,7 @@ async def handle_confirmation(job: dict[str, Any], *, deps: Deps) -> None:
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
+    init_sentry(settings, service="worker-confirmations")
     if settings.app_env in ("staging", "production"):
         await ensure_rls_enforced()
     redis = worker_redis(settings.redis_url)

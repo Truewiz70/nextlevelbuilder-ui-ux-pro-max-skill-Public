@@ -26,6 +26,7 @@ from app.core.config import Settings, get_settings
 from app.core.db import ensure_rls_enforced
 from app.core.errors import PermanentIntegrationError
 from app.core.logging import configure_logging, get_logger
+from app.core.observability import init_sentry
 from app.core.queue import (
     CRM_QUEUE,
     DEFAULT_MAX_ATTEMPTS,
@@ -80,6 +81,7 @@ async def handle_crm_sync(job: dict[str, Any], *, deps: Deps) -> None:
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
+    init_sentry(settings, service="worker-crm")
     if settings.app_env in ("staging", "production"):
         await ensure_rls_enforced()
     redis = worker_redis(settings.redis_url)
