@@ -20,7 +20,7 @@ from sqlalchemy import select, update
 
 import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import get_settings
-from app.core.db import tenant_session
+from app.core.db import ensure_rls_enforced, tenant_session
 from app.core.logging import configure_logging, get_logger
 from app.core.queue import (
     CRM_QUEUE,
@@ -130,6 +130,8 @@ async def handle_post_call(
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
+    if settings.app_env in ("staging", "production"):
+        await ensure_rls_enforced()
     redis = worker_redis(settings.redis_url)
     stop = stop_on_signal()
     llm = get_llm_provider(settings)  # constructed once, reused across jobs

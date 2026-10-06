@@ -75,6 +75,44 @@ async def admin_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
+class UnsafeDatabaseRoleError(RuntimeError):
+    """The process is connected as a role that bypasses row-level security."""
+
+
+async def _role_flags() -> tuple[str, bool, bool]:
+    async with get_session_factory()() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT current_user, rolsuper, rolbypassrls "
+                    "FROM pg_roles WHERE rolname = current_user"
+                )
+            )
+        ).one()
+    return row[0], bool(row[1]), bool(row[2])
+
+
+async def ensure_rls_enforced() -> None:
+    """Refuse to run as a role that silently voids tenant isolation.
+
+    Superusers and BYPASSRLS roles skip every row-level-security policy —
+    FORCE ROW LEVEL SECURITY does not apply to them — while the policies still
+    look correct in `\\d`. Managed Postgres hands out a superuser as the
+    default login, so pointing DATABASE_URL at it "just works" and leaks
+    across tenants without a single error. See infra/postgres/.
+
+    Called at startup by the API and every worker in staging/production.
+    """
+    role, is_super, bypass_rls = await _role_flags()
+    if is_super or bypass_rls:
+        raise UnsafeDatabaseRoleError(
+            f"database role {role!r} bypasses row-level security "
+            f"(superuser={is_super}, bypassrls={bypass_rls}); tenant isolation would not "
+            "apply. Connect as a NOSUPERUSER NOBYPASSRLS role — see "
+            "infra/postgres/bootstrap-managed.sql."
+        )
+
+
 async def check_database() -> bool:
     async with get_session_factory()() as session:
         await session.execute(text("SELECT 1"))

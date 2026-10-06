@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
-from app.core.db import check_database
+from app.core.db import check_database, ensure_rls_enforced
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
 from app.modules.conversation.providers import get_embedding_provider, get_llm_provider
@@ -25,6 +25,8 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
+    if settings.app_env in ("staging", "production"):
+        await ensure_rls_enforced()
     app.state.redis = aioredis.from_url(settings.redis_url)
     # Provider clients are constructed once and reused — not per-request.
     # Tests override these on app.state after TestClient startup (fakes must
