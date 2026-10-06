@@ -16,14 +16,19 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-import redis.asyncio as aioredis
 from sqlalchemy import select
 
 import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.db import admin_session, tenant_session
 from app.core.logging import configure_logging, get_logger
-from app.core.queue import CONFIRMATIONS_QUEUE, reclaim_orphans, run_worker
+from app.core.queue import (
+    CONFIRMATIONS_QUEUE,
+    reclaim_orphans,
+    run_worker,
+    stop_on_signal,
+    worker_redis,
+)
 from app.modules.notifications.providers import get_email_provider, get_sms_provider
 from app.modules.notifications.providers.base import EmailProvider, SMSProvider
 from app.modules.notifications.service import send_email, send_sms
@@ -112,7 +117,8 @@ async def handle_confirmation(job: dict[str, Any], *, deps: Deps) -> None:
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    redis = aioredis.from_url(settings.redis_url)
+    redis = worker_redis(settings.redis_url)
+    stop = stop_on_signal()
     deps = Deps(
         settings=settings,
         email=get_email_provider(settings),
@@ -122,7 +128,10 @@ async def main() -> None:
     logger.info("confirmations_worker_started", queue=CONFIRMATIONS_QUEUE)
     try:
         await run_worker(
-            redis, CONFIRMATIONS_QUEUE, functools.partial(handle_confirmation, deps=deps)
+            redis,
+            CONFIRMATIONS_QUEUE,
+            functools.partial(handle_confirmation, deps=deps),
+            stop=stop,
         )
     finally:
         await redis.aclose()

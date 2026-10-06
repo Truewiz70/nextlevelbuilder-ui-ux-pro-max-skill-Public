@@ -25,6 +25,7 @@ from app.core.queue import (
     promote_due_jobs,
     reclaim_orphans,
     run_worker,
+    worker_redis,
 )
 from tests.conftest import requires_services
 
@@ -295,3 +296,96 @@ async def test_dead_letter_list_is_bounded(redis, queue) -> None:
     assert await redis.llen(dead_letter_key(queue)) == 5
     assert MAX_DEAD_LETTERS > 0
     await _drain(redis, queue)
+
+
+# ── client timeout vs. blocking pop ──────────────────────────────────────
+
+
+@requires_services
+async def test_idle_worker_survives_a_client_timeout_shorter_than_the_block_window() -> None:
+    """redis-py 8 defaults its socket timeout to 5s — exactly the worker's
+    5s blocking-pop window — so an idle worker used to crash with a Redis
+    TimeoutError (found running the production image). A mis-sized client must
+    read as "no job yet", not as a failure."""
+    settings = Settings(_env_file=None, app_env="test")
+    redis = aioredis.from_url(settings.redis_url, socket_timeout=1)
+    queue = f"queue:test-idle-{uuid.uuid4().hex[:8]}"
+    task = asyncio.create_task(
+        run_worker(redis, queue, _never_called, block_seconds=2)  # 2s block, 1s client timeout
+    )
+    try:
+        await asyncio.sleep(3.5)  # long enough for at least one client-side timeout
+        assert not task.done(), "the idle worker exited instead of polling again"
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await redis.aclose()
+
+
+@requires_services
+async def test_worker_redis_client_outlasts_the_blocking_pop() -> None:
+    settings = Settings(_env_file=None, app_env="test")
+    redis = worker_redis(settings.redis_url, block_seconds=2)
+    try:
+        timeout = redis.connection_pool.connection_kwargs["socket_timeout"]
+        assert timeout > 2
+        # And it really can sit in a blocking pop for the whole window.
+        queue = f"queue:test-block-{uuid.uuid4().hex[:8]}"
+        assert await redis.blmove(queue, f"{queue}:processing", timeout=2) is None
+    finally:
+        await redis.aclose()
+
+
+async def _never_called(job):  # pragma: no cover
+    raise AssertionError("no job should be delivered")
+
+
+# ── graceful stop ────────────────────────────────────────────────────────
+
+
+@requires_services
+async def test_stop_signal_finishes_the_job_in_hand_and_leaves_the_rest_queued() -> None:
+    settings = Settings(_env_file=None, app_env="test")
+    redis = worker_redis(settings.redis_url, block_seconds=1)
+    queue = f"queue:test-stop-{uuid.uuid4().hex[:8]}"
+    stop = asyncio.Event()
+    handled: list[str] = []
+
+    async def handler(job: dict) -> None:
+        handled.append(job["name"])
+        stop.set()  # the stop request arrives while this job is running
+        await asyncio.sleep(0.2)  # ...and the job still has work left to do
+
+    try:
+        await enqueue(redis, queue, {"type": "t", "name": "first"})
+        await enqueue(redis, queue, {"type": "t", "name": "second"})
+        await asyncio.wait_for(run_worker(redis, queue, handler, block_seconds=1, stop=stop), 5)
+
+        assert handled == ["first"], "the job in hand must finish; the next must not start"
+        assert await redis.llen(processing_key(queue)) == 0, "finished job must not be left behind"
+        assert await redis.llen(queue) == 1, "the unstarted job stays queued for the next worker"
+    finally:
+        await redis.delete(queue, processing_key(queue))
+        await redis.aclose()
+
+
+@requires_services
+async def test_an_idle_worker_exits_promptly_once_stopped() -> None:
+    settings = Settings(_env_file=None, app_env="test")
+    redis = worker_redis(settings.redis_url, block_seconds=1)
+    stop = asyncio.Event()
+    task = asyncio.create_task(
+        run_worker(
+            redis,
+            f"queue:test-idle-stop-{uuid.uuid4().hex[:8]}",
+            _never_called,
+            block_seconds=1,
+            stop=stop,
+        )
+    )
+    try:
+        await asyncio.sleep(0.3)
+        stop.set()
+        await asyncio.wait_for(task, timeout=3)  # within one block window
+    finally:
+        await redis.aclose()

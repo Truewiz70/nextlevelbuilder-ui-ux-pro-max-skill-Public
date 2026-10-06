@@ -46,5 +46,30 @@ services:
       redis:
         condition: service_healthy
 
+  # Same image as `api`, different role (see apps/api/docker-entrypoint.sh).
+  # Separate processes on purpose: confirmations must keep draining when
+  # post-call summarization is backed up behind a slow LLM.
+  worker: &worker
+    build:
+      context: apps/api
+    command: ["worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://receptionist:receptionist@postgres:5432/receptionist
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  confirmations:
+    <<: *worker
+    command: ["confirmations"]
+
+  crm:
+    <<: *worker
+    command: ["crm"]
+
 volumes:
   pgdata:

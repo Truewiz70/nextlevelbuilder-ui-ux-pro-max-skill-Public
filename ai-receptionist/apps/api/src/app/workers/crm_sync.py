@@ -21,13 +21,18 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-import redis.asyncio as aioredis
-
 import app.models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.errors import PermanentIntegrationError
 from app.core.logging import configure_logging, get_logger
-from app.core.queue import CRM_QUEUE, DEFAULT_MAX_ATTEMPTS, reclaim_orphans, run_worker
+from app.core.queue import (
+    CRM_QUEUE,
+    DEFAULT_MAX_ATTEMPTS,
+    reclaim_orphans,
+    run_worker,
+    stop_on_signal,
+    worker_redis,
+)
 from app.modules.crm.providers import get_crm_provider
 from app.modules.crm.providers.base import CRMProvider
 from app.modules.crm.service import mark_dead, sync_call
@@ -74,12 +79,13 @@ async def handle_crm_sync(job: dict[str, Any], *, deps: Deps) -> None:
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    redis = aioredis.from_url(settings.redis_url)
+    redis = worker_redis(settings.redis_url)
+    stop = stop_on_signal()
     deps = Deps(settings=settings, crm=get_crm_provider(settings))
     await reclaim_orphans(redis, CRM_QUEUE)
     logger.info("crm_worker_started", queue=CRM_QUEUE)
     try:
-        await run_worker(redis, CRM_QUEUE, functools.partial(handle_crm_sync, deps=deps))
+        await run_worker(redis, CRM_QUEUE, functools.partial(handle_crm_sync, deps=deps), stop=stop)
     finally:
         await redis.aclose()
 

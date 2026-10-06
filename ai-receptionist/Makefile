@@ -2,7 +2,18 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev worker confirmations crm seed provision migrate revision test lint fmt dashboard-install dashboard-dev dashboard-build
+.PHONY: lock install up down db dev worker confirmations crm seed provision migrate revision test lint fmt dashboard-install dashboard-dev dashboard-build
+
+# Regenerate the runtime dependency lock the production image installs from.
+# Resolves apps/api's base dependencies in a throwaway venv, so dev tools
+# never leak into the image.
+lock:
+	rm -rf .lockenv && python3 -m venv .lockenv
+	.lockenv/bin/pip install -q --upgrade pip
+	python3 -c "import tomllib; print('\n'.join(tomllib.load(open('apps/api/pyproject.toml','rb'))['project']['dependencies']))" > .lockenv/reqs.txt
+	.lockenv/bin/pip install -q -r .lockenv/reqs.txt
+	.lockenv/bin/pip freeze --exclude-editable | grep -vi '^receptionist' > apps/api/requirements.lock
+	rm -rf .lockenv
 
 install:
 	python3 -m venv $(VENV)

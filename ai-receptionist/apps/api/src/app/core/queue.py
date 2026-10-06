@@ -35,11 +35,13 @@ just delays the alert.
 import asyncio
 import json
 import random
+import signal
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from redis.asyncio import Redis
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from app.core.errors import PermanentIntegrationError
 from app.core.logging import get_logger
@@ -54,6 +56,11 @@ CONFIRMATIONS_QUEUE = "queue:confirmations"
 CRM_QUEUE = "queue:crm"
 
 DEFAULT_MAX_ATTEMPTS = 5
+DEFAULT_BLOCK_SECONDS = 5
+# Head-room between how long BLMOVE may block server-side and how long the
+# client waits for the reply. redis-py 8 defaults the client to a 5s socket
+# timeout, which equals the block window and loses the race on every idle poll.
+SOCKET_TIMEOUT_MARGIN_SECONDS = 10
 BASE_BACKOFF_SECONDS = 2
 MAX_BACKOFF_SECONDS = 300
 # The dead-letter list is a diagnostic buffer, not storage. Durable failure
@@ -132,26 +139,69 @@ async def reclaim_orphans(redis: Redis, queue: str) -> int:
     return reclaimed
 
 
+def stop_on_signal() -> asyncio.Event:
+    """An event that is set when the process is asked to stop (SIGTERM/SIGINT).
+
+    A containerised worker is PID 1, and the kernel gives PID 1 no default
+    action for SIGTERM, so without a handler the platform's stop request is
+    ignored until it escalates to SIGKILL — hard-killing the worker mid-job on
+    every deploy. Passed to `run_worker(stop=...)`, this lets the worker
+    finish the job in hand and exit cleanly. Must be called from a running
+    event loop.
+    """
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, stop.set)
+    return stop
+
+
+def worker_redis(url: str, *, block_seconds: int = DEFAULT_BLOCK_SECONDS) -> Redis:
+    """Redis client for a queue consumer.
+
+    Not interchangeable with the API's client: a consumer sits in a blocking
+    pop for up to `block_seconds`, so its socket timeout has to be longer than
+    that, and a connection idle that long needs keepalive and periodic health
+    checks to survive a managed Redis's idle-connection reaping.
+    """
+    return Redis.from_url(
+        url,
+        socket_timeout=block_seconds + SOCKET_TIMEOUT_MARGIN_SECONDS,
+        socket_keepalive=True,
+        health_check_interval=30,
+    )
+
+
 async def run_worker(
     redis: Redis,
     queue: str,
     handler: Callable[[dict[str, Any]], Awaitable[None]],
     *,
-    block_seconds: int = 5,
+    block_seconds: int = DEFAULT_BLOCK_SECONDS,
     max_jobs: int | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    stop: asyncio.Event | None = None,
 ) -> None:
-    """Consume jobs until cancelled (or `max_jobs`, for tests).
+    """Consume jobs until cancelled, `stop` is set (after the job in hand), or
+    `max_jobs` is reached (for tests).
 
     A handler that returns normally completes the job. A handler that raises
     is retried with backoff until `max_attempts`, then dead-lettered —
     except `PermanentIntegrationError`, which dead-letters immediately.
     """
     processed = 0
-    while max_jobs is None or processed < max_jobs:
+    while (max_jobs is None or processed < max_jobs) and not (stop and stop.is_set()):
         await promote_due_jobs(redis, queue)
 
-        raw = await redis.blmove(queue, processing_key(queue), timeout=block_seconds)
+        try:
+            raw = await redis.blmove(queue, processing_key(queue), timeout=block_seconds)
+        except RedisTimeoutError:
+            # The client gave up waiting before the server's block window
+            # ended: nothing arrived, which is the idle case, not a failure.
+            # A consumer built with `worker_redis` never lands here; this keeps
+            # a mis-sized client from crash-looping an idle worker.
+            logger.warning("queue_poll_client_timeout", queue=queue)
+            raw = None
         if raw is None:
             if max_jobs is not None:
                 # Bounded runs must not spin forever on an empty queue.
