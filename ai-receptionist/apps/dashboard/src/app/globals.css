@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* One accent, desaturated: a deep teal-green against zinc neutrals. */
+  --color-accent-50: oklch(0.97 0.012 180);
+  --color-accent-100: oklch(0.93 0.025 180);
+  --color-accent-600: oklch(0.52 0.085 180);
+  --color-accent-700: oklch(0.45 0.08 180);
+  --color-accent-800: oklch(0.38 0.07 180);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent-600;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  @apply relative overflow-hidden rounded bg-zinc-200/70;
+}
+.skeleton::after {
+  content: "";
+  @apply absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}

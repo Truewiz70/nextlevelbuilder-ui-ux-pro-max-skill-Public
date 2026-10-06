@@ -24,8 +24,8 @@ business, never custom-coded per business.
 - **v1 escalation policy:** voicemail-plus-callback (no live transfer).
 - **Language:** English only at launch.
 
-Full design documents: `../docs/ai-receptionist/` (Phase 1 architecture,
-Phase 2 foundations).
+Full design documents: `../docs/ai-receptionist/` (one per phase; Phase 7 covers
+the dashboard API and web app).
 
 ## Prerequisites
 
@@ -62,6 +62,17 @@ make confirmations            # appointment confirmation email + SMS
 make crm                      # CRM sync (HubSpot): contact, activity, deal
 ```
 
+The dashboard (Phase 7) is a separate Next.js app:
+
+```bash
+make dashboard-install        # npm install
+make dashboard-dev            # http://localhost:3000, talks to the API on :8000
+```
+
+In staging/production the API refuses to start unless `SECRET_KEY` is a random
+value of at least 32 characters (`openssl rand -hex 32`) — it signs dashboard
+login tokens.
+
 They are deliberately not one process: confirmations must keep draining even
 when post-call summarization is backed up behind a slow LLM, and a tenant's
 CRM being down must never delay a confirmation a customer is waiting on. All
@@ -80,7 +91,7 @@ handler fails to process is retried with jitter, not lost.
 
 ```
 apps/api/          FastAPI modular monolith (source of truth for the backend)
-apps/dashboard/    Next.js dashboard (scaffolded in Phase 7)
+apps/dashboard/    Next.js dashboard (call history, analytics, settings) — see its README
 config/tenants/    Example tenant configurations (dental, legal)
 infra/postgres/    Container init: extensions + the non-superuser app role
 infra/             Deploy blueprints (Railway/Vercel) — populated in Phase 8

@@ -2,7 +2,7 @@ VENV ?= .venv
 PY := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
 
-.PHONY: install up down db dev worker confirmations crm seed provision migrate revision test lint fmt
+.PHONY: install up down db dev worker confirmations crm seed provision migrate revision test lint fmt dashboard-install dashboard-dev dashboard-build
 
 install:
 	python3 -m venv $(VENV)
@@ -58,3 +58,13 @@ lint:
 fmt:
 	$(VENV)/bin/ruff check --fix apps/api
 	$(VENV)/bin/ruff format apps/api
+
+dashboard-install:
+	cd apps/dashboard && npm install
+
+dashboard-dev:
+	cd apps/dashboard && npm run dev
+
+# `next build` also type-checks.
+dashboard-build:
+	cd apps/dashboard && npm run build
