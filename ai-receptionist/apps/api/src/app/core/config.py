@@ -9,7 +9,7 @@ rather than surfacing mid-call.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PLACEHOLDER_SECRETS = {"dev-only-secret", "change-me-generate-with-openssl-rand-hex-32"}
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     email_from: str = "notifications@example.com"
 
     # Observability
-    sentry_dsn: str = ""
+    sentry_dsn: str = ""  # empty = error reporting disabled
 
     # Hard ceiling on a read-only in-call tool (FAQ, availability), covering
     # every upstream hop and retry inside it. Past this the caller gets the
@@ -97,14 +97,26 @@ class Settings(BaseSettings):
     # ToolExecutor.
     tool_deadline_seconds: float = 8.0
 
-    # Error reporting. Empty DSN = disabled (see core/observability.py).
-    sentry_dsn: str = ""
+    # Error reporting: an empty `sentry_dsn` (above) disables it; see
+    # core/observability.py.
     sentry_traces_sample_rate: float = 0.0
     app_release: str = ""  # git SHA; falls back to the platform's commit variable
 
     # Guardrails
     max_call_duration_seconds: int = 900
     tenant_daily_spend_cap_usd: float = 50.0
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_the_async_driver(cls, value: str) -> str:
+        """Platforms (Railway, Heroku, Neon...) hand out `postgres://` or
+        `postgresql://` URLs. The app needs the asyncpg driver spelled out; a
+        bare scheme otherwise fails at first connect with a confusing driver
+        error instead of at config time."""
+        for bare in ("postgres://", "postgresql://"):
+            if value.startswith(bare):
+                return "postgresql+asyncpg://" + value[len(bare) :]
+        return value
 
     @model_validator(mode="after")
     def _require_real_secret_outside_dev(self) -> "Settings":

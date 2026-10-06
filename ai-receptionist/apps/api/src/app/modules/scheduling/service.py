@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.errors import NotFoundError
 from app.core.logging import get_logger
 from app.modules.scheduling.availability import available_slots
@@ -162,7 +162,8 @@ async def book_appointment(
 
     async with tenant_session(tenant.id) as session:
         await session.execute(
-            Appointment.__table__.update()
+            table_of(Appointment)
+            .update()
             .where(Appointment.id == appointment_id)
             .values(external_event_id=result.external_event_id)
         )
@@ -192,7 +193,8 @@ async def _release(tenant_id: uuid.UUID, appointment_id: uuid.UUID) -> None:
     from the partial unique index so the slot is immediately rebookable."""
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            Appointment.__table__.update()
+            table_of(Appointment)
+            .update()
             .where(Appointment.id == appointment_id)
             .values(status="cancelled", idempotency_key=None)
         )

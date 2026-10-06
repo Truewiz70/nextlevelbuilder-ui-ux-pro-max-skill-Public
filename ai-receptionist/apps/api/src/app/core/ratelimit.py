@@ -27,13 +27,13 @@ return 0
 async def hit(redis: Redis, key: str, window_seconds: int) -> tuple[int, int]:
     """Count one event. Returns (events in this window including this one,
     seconds until the window resets)."""
-    count, ttl = await redis.eval(_HIT, 1, key, window_seconds)  # type: ignore[misc]
+    count, ttl = await redis.eval(_HIT, 1, key, window_seconds)
     return int(count), int(ttl)
 
 
 async def refund(redis: Redis, key: str) -> None:
     """Undo one `hit` — for events that turned out to be legitimate."""
-    await redis.eval(_REFUND, 1, key)  # type: ignore[misc]
+    await redis.eval(_REFUND, 1, key)
 
 
 async def reset(redis: Redis, *keys: str) -> None:

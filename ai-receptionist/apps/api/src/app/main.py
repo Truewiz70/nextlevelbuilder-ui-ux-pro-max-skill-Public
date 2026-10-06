@@ -5,13 +5,14 @@ mounts module routers. Modules register here and nowhere else — no module
 imports another module's internals.
 """
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-import app.models  # noqa: F401 — registers every ORM model on Base.metadata
+from app import models as _models  # noqa: F401 — registers every ORM model on Base.metadata
 from app.core.config import Settings, get_settings
 from app.core.db import check_database, ensure_rls_enforced
 from app.core.errors import register_error_handlers
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     if settings.app_env in ("staging", "production"):
         await ensure_rls_enforced()
@@ -62,6 +63,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     register_error_handlers(app)
+
+    @app.middleware("http")
+    async def harden_responses(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        if request.url.path.startswith("/api/"):
+            # Tenant data and login responses must never sit in a shared cache.
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

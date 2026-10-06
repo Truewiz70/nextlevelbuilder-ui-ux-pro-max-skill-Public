@@ -5,6 +5,8 @@ takes a tenant id as a path/query parameter, so there is no way to ask for
 another tenant's data by guessing an id.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 
 from app.core.auth import AuthContext, get_current_user, require_role
@@ -60,7 +62,7 @@ async def get_my_tenant(auth: AuthContext = Depends(get_current_user)) -> Tenant
 async def update_my_tenant(
     body: TenantUpdateRequest, auth: AuthContext = Depends(require_role("admin"))
 ) -> TenantSummary:
-    fields: dict = {}
+    fields: dict[str, Any] = {}
     if body.timezone is not None:
         fields["timezone"] = body.timezone
     if body.business_hours is not None:

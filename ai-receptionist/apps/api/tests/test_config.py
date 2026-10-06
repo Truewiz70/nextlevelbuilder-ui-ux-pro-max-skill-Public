@@ -43,3 +43,14 @@ def test_deployed_environments_accept_a_strong_secret_key() -> None:
 def test_development_and_test_keep_the_convenient_default() -> None:
     assert Settings(_env_file=None, app_env="development").secret_key == "dev-only-secret"
     assert Settings(_env_file=None, app_env="test").secret_key == "dev-only-secret"
+
+
+@pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
+def test_platform_style_database_urls_get_the_async_driver(scheme: str) -> None:
+    settings = Settings(_env_file=None, database_url=f"{scheme}://u:p@db.internal:5432/app")
+    assert settings.database_url == "postgresql+asyncpg://u:p@db.internal:5432/app"
+
+
+def test_an_explicit_driver_is_left_alone() -> None:
+    url = "postgresql+asyncpg://u:p@db.internal:5432/app"
+    assert Settings(_env_file=None, database_url=url).database_url == url

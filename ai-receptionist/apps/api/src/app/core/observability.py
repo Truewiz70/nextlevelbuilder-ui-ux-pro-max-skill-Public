@@ -14,12 +14,14 @@ Layered, because any single layer will eventually miss something:
 A no-op unless SENTRY_DSN is set, so development and tests never phone home.
 """
 
+import logging
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 import sentry_sdk
 from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.types import Event, Hint
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -53,7 +55,7 @@ def _scrub(node: Any) -> Any:
     return node
 
 
-def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
+def before_send(event: Event, hint: Hint) -> Event | None:
     exc_info = hint.get("exc_info")
     if exc_info:
         exc = exc_info[1]
@@ -65,7 +67,7 @@ def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] |
         for key in _DROP_REQUEST_KEYS:
             request.pop(key, None)
     event.pop("user", None)
-    return _scrub(event)  # type: ignore[no-any-return]
+    return cast(Event, _scrub(event))
 
 
 def init_sentry(settings: Settings, *, service: str, transport: Any = None) -> bool:
@@ -87,7 +89,7 @@ def init_sentry(settings: Settings, *, service: str, transport: Any = None) -> b
         # structlog writes through stdlib logging; ERROR-level records become
         # events, lower levels are not kept as breadcrumbs (their text is the
         # most likely place for a stray number or name).
-        integrations=[LoggingIntegration(level=None, event_level="ERROR")],
+        integrations=[LoggingIntegration(level=None, event_level=logging.ERROR)],
         transport=transport,
     )
     sentry_sdk.set_tag("service", service)

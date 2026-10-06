@@ -11,6 +11,8 @@ Vapi adapter's payload shapes were validated against fixtures first and the
 live sandbox second.
 """
 
+from typing import cast
+
 import voyageai
 
 from app.core.config import Settings
@@ -19,7 +21,7 @@ from app.modules.conversation.providers.base import EmbeddingProvider
 
 class VoyageEmbeddingProvider(EmbeddingProvider):
     def __init__(self, settings: Settings) -> None:
-        self._client = voyageai.AsyncClient(
+        self._client = voyageai.AsyncClient(  # type: ignore[attr-defined]
             api_key=settings.voyage_api_key or None,
             max_retries=settings.embedding_max_retries,
             timeout=settings.embedding_timeout_seconds,
@@ -32,4 +34,4 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
             model=self._model,
             input_type="query" if for_query else "document",
         )
-        return result.embeddings
+        return cast(list[list[float]], result.embeddings)

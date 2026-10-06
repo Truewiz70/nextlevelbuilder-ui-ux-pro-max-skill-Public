@@ -1,0 +1,18 @@
+# Railway service: api   (HTTP, runs migrations before each deploy)
+# See README.md in this folder for the full setup, including the env vars.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"        # relative to the service's Root Directory (apps/api)
+
+[deploy]
+# `docker-entrypoint.sh <role>` works whether the platform replaces the image
+# ENTRYPOINT with this command or appends it to it (both verified locally).
+preDeployCommand = ["docker-entrypoint.sh migrate"]
+startCommand = "docker-entrypoint.sh api"
+# /readyz checks Postgres and Redis, so a deploy whose dependencies are
+# misconfigured never receives traffic.
+healthcheckPath = "/readyz"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

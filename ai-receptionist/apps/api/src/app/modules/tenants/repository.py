@@ -7,11 +7,12 @@ tenant-scoped.
 """
 
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.core.db import admin_session, tenant_session
+from app.core.db import admin_session, table_of, tenant_session
 from app.core.errors import AuthenticationError, TenantNotFoundError
 from app.modules.tenants.models import AgentConfig, Integration, PhoneNumber, Tenant, User
 
@@ -96,14 +97,14 @@ async def get_active_agent_config(tenant_id: uuid.UUID) -> AgentConfig:
     return config
 
 
-async def update_tenant(tenant_id: uuid.UUID, **fields) -> Tenant:
+async def update_tenant(tenant_id: uuid.UUID, **fields: Any) -> Tenant:
     """Patch whichever of `timezone`/`business_hours`/`settings` were given.
     `settings` replaces the whole JSONB blob — the caller (routes.py) is
     responsible for merging over the existing value first, the same way a
     PATCH that only means to touch one key still has to send the rest."""
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            Tenant.__table__.update().where(Tenant.id == tenant_id).values(**fields)
+            table_of(Tenant).update().where(Tenant.id == tenant_id).values(**fields)
         )
         tenant = (await session.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one()
         session.expunge(tenant)
@@ -151,7 +152,7 @@ async def upsert_integration(
         return integration
 
 
-async def create_agent_config_version(tenant_id: uuid.UUID, **fields) -> AgentConfig:
+async def create_agent_config_version(tenant_id: uuid.UUID, **fields: Any) -> AgentConfig:
     """Write a dashboard edit as a *new* version rather than mutating the
     active row in place — agent_configs is versioned by design (README:
     "versioned agent configs"), and provision_voice.py always reads
@@ -164,7 +165,8 @@ async def create_agent_config_version(tenant_id: uuid.UUID, **fields) -> AgentCo
             )
         ).scalar_one()
         await session.execute(
-            AgentConfig.__table__.update()
+            table_of(AgentConfig)
+            .update()
             .where(AgentConfig.id == current.id)
             .values(is_active=False)
         )

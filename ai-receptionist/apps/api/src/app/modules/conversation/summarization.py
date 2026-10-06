@@ -6,7 +6,7 @@ model (Haiku) — a classification/summarization task, per Phase 1 §5.1.
 import json
 import re
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from app.core.logging import get_logger
 from app.modules.conversation.providers.base import CompletionRequest, LLMProvider
@@ -48,16 +48,16 @@ class SummarizationResult:
 _FALLBACK: CallClassification = {"summary": None, "outcome": "other", "sentiment": None}
 
 
-def _format_transcript(turns: list[dict]) -> str:
+def _format_transcript(turns: list[dict[str, Any]]) -> str:
     return "\n".join(f"{turn.get('role', '?')}: {turn.get('text', '')}" for turn in turns)
 
 
-async def summarize_call(turns: list[dict], llm: LLMProvider) -> SummarizationResult:
+async def summarize_call(turns: list[dict[str, Any]], llm: LLMProvider) -> SummarizationResult:
     """Never raises — any parse or completion failure degrades to the safe
     fallback (outcome="other", zero token usage) so the worker can never
     crash on bad output."""
     if not turns:
-        return SummarizationResult(dict(_FALLBACK), 0, 0, "none")
+        return SummarizationResult(_FALLBACK.copy(), 0, 0, "none")
 
     try:
         result = await llm.complete(
@@ -72,7 +72,7 @@ async def summarize_call(turns: list[dict], llm: LLMProvider) -> SummarizationRe
         data = json.loads(match.group(0)) if match else {}
     except Exception:
         logger.exception("call_summarization_failed")
-        return SummarizationResult(dict(_FALLBACK), 0, 0, "none")
+        return SummarizationResult(_FALLBACK.copy(), 0, 0, "none")
 
     summary = data.get("summary")
     outcome = data.get("outcome")

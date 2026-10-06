@@ -37,7 +37,7 @@ import httpx
 from sqlalchemy import select
 
 from app.core.config import Settings
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.errors import IntegrationError, PermanentIntegrationError
 from app.core.logging import get_logger
 from app.core.security import CredentialCipher
@@ -93,7 +93,9 @@ class HubSpotCRMProvider(CRMProvider):
                 raise PermanentIntegrationError(
                     f"tenant {tenant_id} has no connected HubSpot integration"
                 )
-            credentials = json.loads(self._cipher.decrypt(row.credentials_encrypted))
+            credentials: dict[str, Any] = json.loads(
+                self._cipher.decrypt(row.credentials_encrypted)
+            )
             row_id = row.id
 
         if self._is_expired(credentials):
@@ -140,7 +142,8 @@ class HubSpotCRMProvider(CRMProvider):
 
         async with tenant_session(tenant_id) as session:
             await session.execute(
-                Integration.__table__.update()
+                table_of(Integration)
+                .update()
                 .where(Integration.id == integration_id)
                 .values(credentials_encrypted=self._cipher.encrypt(json.dumps(credentials)))
             )
@@ -152,7 +155,8 @@ class HubSpotCRMProvider(CRMProvider):
     ) -> None:
         async with tenant_session(tenant_id) as session:
             await session.execute(
-                Integration.__table__.update()
+                table_of(Integration)
+                .update()
                 .where(Integration.id == integration_id)
                 .values(status=status)
             )

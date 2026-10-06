@@ -33,11 +33,12 @@ Nothing here runs on the call path.
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.logging import get_logger
 from app.modules.conversation.models import Lead
 from app.modules.crm import mapping
@@ -110,7 +111,8 @@ async def _claim_attempt(tenant_id: uuid.UUID, sync_id: uuid.UUID) -> bool:
     stale_before = now - CLAIM_STALE_AFTER
     async with tenant_session(tenant_id) as session:
         result = await session.execute(
-            CrmSync.__table__.update()
+            table_of(CrmSync)
+            .update()
             .where(
                 CrmSync.id == sync_id,
                 or_(
@@ -131,12 +133,12 @@ async def _load(tenant_id: uuid.UUID, sync_id: uuid.UUID) -> CrmSync:
         return row
 
 
-async def _record(tenant_id: uuid.UUID, sync_id: uuid.UUID, **values) -> None:
+async def _record(tenant_id: uuid.UUID, sync_id: uuid.UUID, **values: Any) -> None:
     """Persist progress immediately. Called after *each* external write, so a
     crash between steps still leaves the completed ones marked done."""
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            CrmSync.__table__.update().where(CrmSync.id == sync_id).values(**values)
+            table_of(CrmSync).update().where(CrmSync.id == sync_id).values(**values)
         )
 
 
@@ -284,14 +286,15 @@ async def sync_call(
 async def _record_lead_contact(tenant_id: uuid.UUID, lead_id: uuid.UUID, contact_id: str) -> None:
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            Lead.__table__.update().where(Lead.id == lead_id).values(crm_contact_id=contact_id)
+            table_of(Lead).update().where(Lead.id == lead_id).values(crm_contact_id=contact_id)
         )
 
 
 async def _mark_lead_synced(tenant_id: uuid.UUID, lead_id: uuid.UUID) -> None:
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            Lead.__table__.update()
+            table_of(Lead)
+            .update()
             .where(Lead.id == lead_id)
             .values(crm_synced_at=datetime.now(UTC))
         )
@@ -303,7 +306,8 @@ async def mark_dead(tenant_id: uuid.UUID, call_id: uuid.UUID, reason: str) -> No
     cannot see."""
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            CrmSync.__table__.update()
+            table_of(CrmSync)
+            .update()
             .where(CrmSync.idempotency_key == sync_key(call_id))
             .values(status="dead", last_error=reason[:500])
         )

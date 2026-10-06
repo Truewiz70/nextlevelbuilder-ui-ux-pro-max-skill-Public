@@ -19,7 +19,7 @@ live-call test.
 import asyncio
 import uuid
 from collections.abc import Awaitable
-from typing import Any
+from typing import Any, cast
 
 from redis.asyncio import Redis
 
@@ -239,8 +239,11 @@ class ToolExecutor:
                         preferred_window=arguments.get("preferred_window"),
                     )
                     logger.info("callback_requested", request_id=str(request_id))
-                    return agent_config.escalation_policy.get(
-                        "callback_promise", "Someone from the team will call you back."
+                    return cast(
+                        str,
+                        agent_config.escalation_policy.get(
+                            "callback_promise", "Someone from the team will call you back."
+                        ),
                     )
                 case _:
                     logger.warning("unknown_tool_call", tool_name=tool_name)

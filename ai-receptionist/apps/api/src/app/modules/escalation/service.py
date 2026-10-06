@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.errors import NotFoundError, ValidationFailedError
 from app.modules.escalation.models import CallbackRequest
 
@@ -51,7 +51,8 @@ async def update_callback_status(
         raise ValidationFailedError(f"invalid status {status!r}, must be one of {VALID_STATUSES}")
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            CallbackRequest.__table__.update()
+            table_of(CallbackRequest)
+            .update()
             .where(CallbackRequest.id == request_id, CallbackRequest.tenant_id == tenant_id)
             .values(status=status)
         )

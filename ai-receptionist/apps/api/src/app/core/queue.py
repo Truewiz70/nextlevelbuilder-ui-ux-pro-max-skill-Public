@@ -104,7 +104,7 @@ async def schedule_retry(redis: Redis, queue: str, job: dict[str, Any], delay: f
 async def promote_due_jobs(redis: Redis, queue: str, *, now: float | None = None) -> int:
     """Move retries whose backoff has elapsed back onto the ready list."""
     now = now if now is not None else time.time()
-    due = await redis.zrangebyscore(delayed_key(queue), "-inf", now)
+    due: list[Any] = await redis.zrangebyscore(delayed_key(queue), "-inf", now)
     promoted = 0
     for raw in due:
         # Only the worker that wins the ZREM may re-queue the job, so two
@@ -194,7 +194,7 @@ async def run_worker(
         await promote_due_jobs(redis, queue)
 
         try:
-            raw = await redis.blmove(queue, processing_key(queue), timeout=block_seconds)
+            raw: Any = await redis.blmove(queue, processing_key(queue), timeout=block_seconds)
         except RedisTimeoutError:
             # The client gave up waiting before the server's block window
             # ended: nothing arrived, which is the idle case, not a failure.

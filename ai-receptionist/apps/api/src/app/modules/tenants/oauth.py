@@ -53,7 +53,7 @@ HUBSPOT_SCOPES = (
 def _validate_provider(provider: str) -> Provider:
     if provider not in PROVIDERS:
         raise ValidationFailedError(f"unknown integration provider {provider!r}")
-    return provider  # type: ignore[return-value]
+    return provider
 
 
 def _redirect_uri(settings: Settings, provider: Provider) -> str:

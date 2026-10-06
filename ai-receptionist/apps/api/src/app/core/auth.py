@@ -9,6 +9,7 @@ allow the header, not credentials.
 """
 
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from fastapi import Depends, Request
@@ -61,7 +62,7 @@ async def get_current_user(
         raise AuthenticationError("malformed token claims") from exc
 
 
-def require_role(minimum: str):
+def require_role(minimum: str) -> Callable[..., Awaitable[AuthContext]]:
     """Dependency factory: `Depends(require_role("admin"))` lets admin/owner
     through and rejects viewer with 403. `Depends(get_current_user)` alone is
     the "any signed-in user" case — every authenticated route needs one or

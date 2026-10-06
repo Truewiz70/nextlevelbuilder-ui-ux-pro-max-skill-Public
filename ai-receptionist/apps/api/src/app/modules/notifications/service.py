@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.logging import get_logger
 from app.modules.notifications.models import Notification
 from app.modules.notifications.providers.base import EmailProvider, SMSProvider
@@ -67,7 +67,8 @@ async def _finalize(
 ) -> None:
     async with tenant_session(tenant_id) as session:
         await session.execute(
-            Notification.__table__.update()
+            table_of(Notification)
+            .update()
             .where(Notification.id == notification_id)
             .values(
                 status=status,

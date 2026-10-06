@@ -1,0 +1,12 @@
+# Railway service: worker   (post-call classification (Claude))
+# No HTTP surface, no migrations: only the api service migrates. See README.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"        # relative to the service's Root Directory (apps/api)
+
+[deploy]
+startCommand = "docker-entrypoint.sh worker"
+# A queue consumer that exits for any reason should come back; the queue
+# reclaims whatever job it was holding on startup.
+restartPolicyType = "always"

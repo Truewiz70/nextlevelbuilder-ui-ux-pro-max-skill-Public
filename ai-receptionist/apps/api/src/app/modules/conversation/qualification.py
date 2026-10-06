@@ -38,7 +38,7 @@ async def record_answer(
 ) -> tuple[uuid.UUID, int]:
     """Upsert the lead's qualification answers and running score for this
     call. Returns (lead_id, score_after_this_answer)."""
-    question_config = next(
+    question_config: dict[str, Any] = next(
         (q for q in agent_config.qualification if q.get("key") == question_key), {}
     )
     points = score_answer(question_config, answer)
@@ -52,7 +52,7 @@ async def record_answer(
             qualification=patch,
             score=points,
         )
-        stmt = stmt.on_conflict_do_update(
+        upsert = stmt.on_conflict_do_update(
             # The target index is partial (WHERE call_id IS NOT NULL,
             # migration 0003), so ON CONFLICT must repeat that predicate via
             # index_where or Postgres won't match it.
@@ -65,6 +65,6 @@ async def record_answer(
                 "score": Lead.score + stmt.excluded.score,
             },
         ).returning(Lead.id, Lead.score)
-        lead_id, score = (await session.execute(stmt)).one()
+        lead_id, score = (await session.execute(upsert)).one()
 
     return lead_id, score

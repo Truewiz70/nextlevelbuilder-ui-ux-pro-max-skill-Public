@@ -20,7 +20,7 @@ import httpx
 from sqlalchemy import select
 
 from app.core.config import Settings
-from app.core.db import tenant_session
+from app.core.db import table_of, tenant_session
 from app.core.errors import IntegrationError
 from app.core.logging import get_logger
 from app.core.security import CredentialCipher
@@ -71,7 +71,9 @@ class GoogleCalendarProvider(CalendarProvider):
                 raise IntegrationError(
                     f"tenant {tenant_id} has no connected Google Calendar integration"
                 )
-            credentials = json.loads(self._cipher.decrypt(row.credentials_encrypted))
+            credentials: dict[str, Any] = json.loads(
+                self._cipher.decrypt(row.credentials_encrypted)
+            )
             credentials.setdefault("calendar_id", row.config.get("calendar_id", "primary"))
             row_id = row.id
 
@@ -117,7 +119,8 @@ class GoogleCalendarProvider(CalendarProvider):
 
         async with tenant_session(tenant_id) as session:
             await session.execute(
-                Integration.__table__.update()
+                table_of(Integration)
+                .update()
                 .where(Integration.id == integration_id)
                 .values(credentials_encrypted=self._cipher.encrypt(json.dumps(credentials)))
             )
@@ -129,7 +132,8 @@ class GoogleCalendarProvider(CalendarProvider):
     ) -> None:
         async with tenant_session(tenant_id) as session:
             await session.execute(
-                Integration.__table__.update()
+                table_of(Integration)
+                .update()
                 .where(Integration.id == integration_id)
                 .values(status=status)
             )

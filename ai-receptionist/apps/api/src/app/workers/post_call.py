@@ -46,7 +46,7 @@ async def _enqueue_crm(
     tenant_id: uuid.UUID,
     call_id: uuid.UUID,
     outcome: str | None,
-    summary: str,
+    summary: str | None,
     duration_seconds: int,
 ) -> None:
     await enqueue(

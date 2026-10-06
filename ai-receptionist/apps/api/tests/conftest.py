@@ -45,7 +45,9 @@ def _clear_rate_limit_counters():
     if _reachable("localhost", 6379):
         import redis
 
-        client = redis.Redis()
+        from app.core.config import Settings
+
+        client = redis.Redis.from_url(Settings(_env_file=None).redis_url)
         keys = list(client.scan_iter("rl:*"))
         if keys:
             client.delete(*keys)

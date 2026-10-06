@@ -59,7 +59,7 @@ async def get_summary(tenant_id: uuid.UUID, *, days: int = 30) -> AnalyticsSumma
                 .group_by(Call.outcome)
             )
         ).all()
-        calls_by_outcome: dict[str, int] = dict(outcome_rows)
+        calls_by_outcome: dict[str, int] = {str(k): v for k, v in outcome_rows}
         classified_calls = sum(calls_by_outcome.values())
 
         sentiment_rows = (
@@ -69,7 +69,7 @@ async def get_summary(tenant_id: uuid.UUID, *, days: int = 30) -> AnalyticsSumma
                 .group_by(Call.sentiment)
             )
         ).all()
-        calls_by_sentiment: dict[str, int] = dict(sentiment_rows)
+        calls_by_sentiment: dict[str, int] = {str(k): v for k, v in sentiment_rows}
 
         # Grouped in UTC, not the tenant's local day — a caller near
         # midnight can land on the "wrong" local day in the chart. Simple
