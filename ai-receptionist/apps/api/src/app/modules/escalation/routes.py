@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 
-from app.core.auth import AuthContext, get_current_user
+from app.core.auth import AuthContext, get_current_user, require_role
 from app.core.db import tenant_session
 from app.core.util import Page
 from app.modules.escalation.models import CallbackRequest
@@ -53,7 +53,7 @@ async def list_callback_requests(
 async def update_callback(
     request_id: UUID,
     body: CallbackStatusUpdate,
-    auth: AuthContext = Depends(get_current_user),
+    auth: AuthContext = Depends(require_role("admin")),
 ) -> CallbackRequestSummary:
     updated = await update_callback_status(auth.tenant_id, request_id, body.status)
     return CallbackRequestSummary.model_validate(updated)

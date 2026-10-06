@@ -16,5 +16,5 @@ def test_healthz_reports_ok() -> None:
 
 
 def test_docs_disabled_in_production() -> None:
-    app = create_app(Settings(app_env="production"))
+    app = create_app(Settings(app_env="production", secret_key="k" * 40))
     assert app.docs_url is None

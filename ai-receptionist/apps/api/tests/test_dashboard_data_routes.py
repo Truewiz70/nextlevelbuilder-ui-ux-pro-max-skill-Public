@@ -59,6 +59,13 @@ def seeded():
         )
         conn.execute(
             text(
+                "INSERT INTO users (tenant_id, email, role, password_hash) "
+                "VALUES (:tid, 'viewer@x.com', 'viewer', :hash)"
+            ),
+            {"tid": str(tenant_id), "hash": hash_password("pw")},
+        )
+        conn.execute(
+            text(
                 "INSERT INTO calls (id, tenant_id, vendor_call_id, caller_e164, started_at, "
                 "ended_at, outcome, sentiment, summary, recording_url, vendor_cost_cents, "
                 "llm_cost_cents) VALUES (:id, :tid, 'vc-1', '+15551234567', :started, :ended, "
@@ -113,9 +120,9 @@ def seeded():
         engine.dispose()
 
 
-def _login_headers(client: TestClient, slug: str) -> dict:
+def _login_headers(client: TestClient, slug: str, email: str = "owner@x.com") -> dict:
     token = client.post(
-        "/api/v1/auth/login", json={"tenant_slug": slug, "email": "owner@x.com", "password": "pw"}
+        "/api/v1/auth/login", json={"tenant_slug": slug, "email": email, "password": "pw"}
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -380,3 +387,36 @@ def test_failed_syncs_lists_only_failed_and_dead(seeded) -> None:
         assert len(r.json()) == 1
         assert r.json()[0]["status"] == "failed"
         assert r.json()[0]["last_error"] == "HubSpot 503"
+
+
+# ── role enforcement ─────────────────────────────────────────────────────
+
+
+@requires_services
+def test_viewer_can_read_but_not_cancel_an_appointment(seeded) -> None:
+    """The dashboard hides the Cancel button from viewers, but hiding is not
+    enforcement — the API has to refuse, and must leave the calendar alone."""
+    _, slug, _, appointment_id, _ = seeded
+    calendar = FakeCalendarProvider()
+    app = create_app(Settings(app_env="test"))
+    with TestClient(app) as client:
+        app.state.calendar_provider = calendar
+        headers = _login_headers(client, slug, "viewer@x.com")
+        assert client.get("/api/v1/appointments", headers=headers).status_code == 200
+        r = client.post(f"/api/v1/appointments/{appointment_id}/cancel", headers=headers)
+        assert r.status_code == 403
+        assert r.json()["error"]["code"] == "forbidden"
+        assert calendar.cancelled == []
+
+
+@requires_services
+def test_viewer_cannot_change_a_callback_status(seeded) -> None:
+    _, slug, _, _, callback_id = seeded
+    with TestClient(create_app(Settings(app_env="test"))) as client:
+        headers = _login_headers(client, slug, "viewer@x.com")
+        r = client.patch(
+            f"/api/v1/callback-requests/{callback_id}", headers=headers, json={"status": "resolved"}
+        )
+        assert r.status_code == 403
+        listed = client.get("/api/v1/callback-requests", headers=headers).json()
+        assert listed["items"][0]["status"] == "open"

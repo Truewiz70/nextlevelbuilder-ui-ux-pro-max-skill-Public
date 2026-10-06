@@ -9,8 +9,10 @@ rather than surfacing mid-call.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_PLACEHOLDER_SECRETS = {"dev-only-secret", "change-me-generate-with-openssl-rand-hex-32"}
 
 
 class Settings(BaseSettings):
@@ -80,6 +82,20 @@ class Settings(BaseSettings):
     # Guardrails
     max_call_duration_seconds: int = 900
     tenant_daily_spend_cap_usd: float = 50.0
+
+    @model_validator(mode="after")
+    def _require_real_secret_outside_dev(self) -> "Settings":
+        # secret_key signs dashboard login tokens. The development default is
+        # public (it is in this repo), so a staging/production process that
+        # started with it would accept forged tokens for any tenant.
+        if self.app_env in ("staging", "production") and (
+            self.secret_key in _PLACEHOLDER_SECRETS or len(self.secret_key) < 32
+        ):
+            raise ValueError(
+                "SECRET_KEY must be set to a random value of at least 32 characters "
+                "in staging/production (generate one with: openssl rand -hex 32)"
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

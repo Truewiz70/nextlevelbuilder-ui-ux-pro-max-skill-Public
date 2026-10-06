@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 
-from app.core.auth import AuthContext, get_current_user
+from app.core.auth import AuthContext, get_current_user, require_role
 from app.core.db import tenant_session
 from app.core.util import Page
 from app.modules.scheduling.models import Appointment
@@ -46,7 +46,7 @@ async def list_appointments(
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=AppointmentSummary)
 async def cancel(
-    appointment_id: UUID, request: Request, auth: AuthContext = Depends(get_current_user)
+    appointment_id: UUID, request: Request, auth: AuthContext = Depends(require_role("admin"))
 ) -> AppointmentSummary:
     calendar = request.app.state.calendar_provider
     appointment = await cancel_appointment(
