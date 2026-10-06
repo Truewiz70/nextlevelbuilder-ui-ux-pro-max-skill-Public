@@ -9,7 +9,7 @@ from app.core.config import get_settings
 
 def _sync_url() -> str:
     # asyncpg URL -> sync psycopg URL for Alembic's offline/online runs
-    return get_settings().database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return get_settings().database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
 
 
 def run_migrations_offline() -> None:

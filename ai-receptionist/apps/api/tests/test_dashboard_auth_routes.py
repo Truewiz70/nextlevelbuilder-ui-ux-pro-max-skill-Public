@@ -15,7 +15,9 @@ from tests.conftest import requires_services
 
 def _sync_engine():
     settings = Settings(_env_file=None, app_env="test")
-    return create_engine(settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1))
+    return create_engine(
+        settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    )
 
 
 def _seed_tenant_with_users(engine, *, slug: str) -> uuid.UUID:

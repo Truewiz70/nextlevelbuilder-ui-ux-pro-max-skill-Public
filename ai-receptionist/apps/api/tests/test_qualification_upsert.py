@@ -54,7 +54,7 @@ def _agent_config(tenant_id: uuid.UUID) -> AgentConfig:
 @requires_services
 async def test_sequential_answers_merge_and_accumulate_score() -> None:
     settings = Settings(_env_file=None, app_env="test")
-    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     engine = create_engine(sync_url)
     tenant_id = uuid.uuid4()
     call_id = uuid.uuid4()
@@ -88,7 +88,7 @@ async def test_sequential_answers_merge_and_accumulate_score() -> None:
 @requires_services
 async def test_concurrent_answers_for_same_call_do_not_duplicate_lead() -> None:
     settings = Settings(_env_file=None, app_env="test")
-    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     engine = create_engine(sync_url)
     tenant_id = uuid.uuid4()
     call_id = uuid.uuid4()

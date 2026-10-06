@@ -21,11 +21,11 @@ dependencies = [
     "pgvector>=0.3",
     "pyjwt>=2.9",
     "bcrypt>=4.2",
+    "psycopg2-binary>=2.9",  # sync driver for Alembic migrations in production
 ]
 
 [project.optional-dependencies]
 dev = [
-    "psycopg2-binary>=2.9",  # sync driver for Alembic + integration tests
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.6",

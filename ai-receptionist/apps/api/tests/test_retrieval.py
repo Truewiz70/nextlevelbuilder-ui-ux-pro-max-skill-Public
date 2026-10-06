@@ -22,7 +22,7 @@ from tests.fakes import FakeEmbeddingProvider
 @requires_services
 async def test_relevant_chunk_ranks_first_and_is_tenant_scoped() -> None:
     settings = Settings(_env_file=None, app_env="test")
-    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     engine = create_engine(sync_url)
     embeddings = FakeEmbeddingProvider()
 
@@ -97,7 +97,7 @@ async def test_relevant_chunk_ranks_first_and_is_tenant_scoped() -> None:
 @requires_services
 async def test_no_chunks_returns_empty_below_confidence_floor() -> None:
     settings = Settings(_env_file=None, app_env="test")
-    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     engine = create_engine(sync_url)
     embeddings = FakeEmbeddingProvider()
 

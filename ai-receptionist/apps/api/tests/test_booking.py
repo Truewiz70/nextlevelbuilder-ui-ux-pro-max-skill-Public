@@ -39,7 +39,9 @@ NOW = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
 
 def _sync_engine():
     settings = Settings(_env_file=None, app_env="test")
-    return create_engine(settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1))
+    return create_engine(
+        settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    )
 
 
 def _tenant(tenant_id: uuid.UUID) -> Tenant:

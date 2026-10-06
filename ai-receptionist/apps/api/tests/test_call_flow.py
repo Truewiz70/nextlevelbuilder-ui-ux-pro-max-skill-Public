@@ -32,7 +32,7 @@ def _fixture(name: str, number: str, call_id: str) -> dict:
 @requires_services
 def test_full_call_lifecycle() -> None:
     settings = Settings(_env_file=None, app_env="test", vapi_webhook_secret=SECRET)
-    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
     engine = create_engine(sync_url)
     redis = sync_redis.Redis.from_url(settings.redis_url)
 

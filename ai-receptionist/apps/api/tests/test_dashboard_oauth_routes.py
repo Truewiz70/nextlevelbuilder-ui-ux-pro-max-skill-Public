@@ -41,7 +41,9 @@ CONNECTED_SETTINGS = dict(
 
 def _sync_engine():
     settings = Settings(_env_file=None, app_env="test")
-    return create_engine(settings.database_url.replace("postgresql+asyncpg://", "postgresql://", 1))
+    return create_engine(
+        settings.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    )
 
 
 def _seed_tenant_and_owner(engine) -> tuple[uuid.UUID, str]:
