@@ -33,6 +33,28 @@ from app.modules.telephony.models import Call, Transcript
 logger = get_logger(__name__)
 
 
+async def _enqueue_crm(
+    redis: Redis,
+    tenant_id: uuid.UUID,
+    call_id: uuid.UUID,
+    outcome: str | None,
+    summary: str,
+    duration_seconds: int,
+) -> None:
+    await enqueue(
+        redis,
+        CRM_QUEUE,
+        {
+            "type": "crm_sync",
+            "tenant_id": str(tenant_id),
+            "call_id": str(call_id),
+            "outcome": outcome,
+            "summary": summary,
+            "duration_seconds": duration_seconds,
+        },
+    )
+
+
 async def handle_post_call(
     job: dict[str, Any], *, llm: LLMProvider | None = None, redis: Redis | None = None
 ) -> None:
@@ -42,13 +64,25 @@ async def handle_post_call(
 
     async with tenant_session(tenant_id) as session:
         call = await session.get(Call, call_id)
-        if call is None or call.outcome is not None:
-            return  # already processed (or the call vanished) — idempotent no-op
+        if call is None:
+            return  # the call vanished — nothing to do
         duration_seconds = (
             int((call.ended_at - call.started_at).total_seconds())
             if call.ended_at and call.started_at
             else 0
         )
+        if call.outcome is not None:
+            # Classified on an earlier attempt. That attempt may have died
+            # after committing the classification but before the CRM job was
+            # enqueued, and this retry is the only thing that can notice —
+            # so hand off again rather than returning. A duplicate CRM job is
+            # harmless: the crm_syncs ledger turns it into an "already
+            # synced" no-op.
+            if redis is not None:
+                await _enqueue_crm(
+                    redis, tenant_id, call_id, call.outcome, call.summary or "", duration_seconds
+                )
+            return
         turns = (
             await session.execute(select(Transcript.turns).where(Transcript.call_id == call_id))
         ).scalar_one_or_none() or []
@@ -76,17 +110,13 @@ async def handle_post_call(
     # down must never delay or fail call classification, which has already
     # been committed above.
     if redis is not None:
-        await enqueue(
+        await _enqueue_crm(
             redis,
-            CRM_QUEUE,
-            {
-                "type": "crm_sync",
-                "tenant_id": str(tenant_id),
-                "call_id": str(call_id),
-                "outcome": result.classification.get("outcome"),
-                "summary": result.classification.get("summary", ""),
-                "duration_seconds": duration_seconds,
-            },
+            tenant_id,
+            call_id,
+            result.classification.get("outcome"),
+            result.classification.get("summary", ""),
+            duration_seconds,
         )
 
 

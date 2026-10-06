@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.config import Settings
@@ -86,21 +86,21 @@ class TelephonyService:
         cost_cents = round(float(event.payload.get("cost") or 0) * 100)
 
         async with tenant_session(tenant_id) as session:
+            # Every write here tolerates a vendor redelivery: a retried
+            # end-of-call report must converge on the same state, not 500.
             await session.execute(
                 update(Call)
                 .where(Call.id == call_id)
                 .values(
-                    ended_at=datetime.now(UTC),
+                    ended_at=func.coalesce(Call.ended_at, datetime.now(UTC)),
                     recording_url=artifact.get("recordingUrl"),
                     vendor_cost_cents=cost_cents,
                 )
             )
-            session.add(
-                Transcript(
-                    tenant_id=tenant_id,
-                    call_id=call_id,
-                    turns=self._normalize_turns(artifact),
-                )
+            await session.execute(
+                pg_insert(Transcript)
+                .values(tenant_id=tenant_id, call_id=call_id, turns=self._normalize_turns(artifact))
+                .on_conflict_do_nothing(index_elements=["call_id"])
             )
             session.add(
                 CallEvent(
@@ -111,6 +111,10 @@ class TelephonyService:
                 )
             )
 
+        # Enqueued on every delivery, not only the first: if the enqueue
+        # fails after the commit above, the vendor's retry must be able to
+        # enqueue it. The consumer is idempotent (post_call skips a call that
+        # already has an outcome), so a duplicate job costs nothing.
         await enqueue(
             self._redis,
             POST_CALL_QUEUE,
